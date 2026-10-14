@@ -184,6 +184,25 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
         </div>
       </div>
 
+      {/* Active Match Identifier Banner */}
+      <div className="mt-4 p-4 bg-slate-900 text-white rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">
+            Currently Editing Match Fixture
+          </div>
+          <div className="text-base font-black text-white">
+            {matchState.home?.name || 'Home Team'} <span className="text-blue-400 font-mono">({matchState.home?.score ?? 0})</span> vs <span className="text-amber-400 font-mono">({matchState.away?.score ?? 0})</span> {matchState.away?.name || 'Away Team'}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-gray-300 font-mono text-[11px]">
+          <span>{matchState.venue || 'Arena'}</span>
+          <span>•</span>
+          <span className="text-emerald-400 font-bold">{matchState.status || (matchState.period === 'FT' ? 'Finished' : `Period ${matchState.period || '1'}`)}</span>
+          <span>•</span>
+          <span className="text-gray-400 font-sans">ID: {matchState.id || 'active'}</span>
+        </div>
+      </div>
+
       {/* Notification Toast */}
       {notification && (
         <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-1">

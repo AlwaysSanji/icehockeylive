@@ -42,6 +42,11 @@ export function RemoteView({
   const homeShots = matchState?.home?.shots ?? (homeScore ? homeScore * 5 + 10 : 25);
   const awayShots = matchState?.away?.shots ?? (awayScore ? awayScore * 5 + 8 : 22);
 
+  // Active match tracking for clear admin orientation
+  const activeMatchIndex = matches.findIndex(m => m.id === matchState?.id);
+  const currentMatchNumber = activeMatchIndex >= 0 ? activeMatchIndex + 1 : 1;
+  const totalMatches = Math.max(matches.length, 1);
+
   // Lineups for incident logger
   const homeLineup = useMemo(() => getTeamLineup(homeTeamId, homeName), [homeTeamId, homeName]);
   const awayLineup = useMemo(() => getTeamLineup(awayTeamId, awayName), [awayTeamId, awayName]);
@@ -351,19 +356,92 @@ export function RemoteView({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Top Navigation Bar */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={onBackToScoreboard}
-          className="text-sm font-semibold text-gray-700 hover:text-gray-900 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer"
-        >
-          <span>Back to Scoreboard</span>
-        </button>
+      {/* Persistent Sticky Bar when scrolling - Always shows which match is being edited */}
+      <div className="sticky top-2 z-40 bg-gray-950/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-xl border border-gray-800 mb-6 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="flex items-center gap-1.5 font-bold text-blue-400 uppercase tracking-wider text-[11px] shrink-0">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            Editing Match {currentMatchNumber} of {totalMatches}:
+          </span>
+          <span className="font-extrabold text-white text-sm truncate">
+            {homeName} <span className="text-blue-400 font-mono">({homeScore})</span> vs <span className="text-amber-400 font-mono">({awayScore})</span> {awayName}
+          </span>
+          <span className="text-gray-500 hidden md:inline">•</span>
+          <span className="text-gray-300 font-medium text-[11px] hidden md:inline">
+            Period {matchState?.period || '1'} • {formattedTime}
+          </span>
+          <span className="text-gray-500 hidden lg:inline">•</span>
+          <span className="text-gray-400 text-[11px] hidden lg:inline truncate max-w-[150px]">
+            {matchState?.venue || 'Arena'}
+          </span>
+        </div>
 
+        <div className="flex items-center gap-2">
+          {matches.length > 1 && (
+            <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-700/80 rounded-xl px-2.5 py-1">
+              <span className="text-[10px] uppercase font-bold text-gray-400 shrink-0">Switch:</span>
+              <select
+                value={matchState?.id || ''}
+                onChange={(e) => onSelectMatch && onSelectMatch(e.target.value)}
+                className="bg-transparent text-xs font-bold text-gray-100 outline-none cursor-pointer max-w-[160px] sm:max-w-[200px] truncate"
+                title="Select active match to control"
+              >
+                {matches.map((m, idx) => (
+                  <option key={m.id} value={m.id} className="bg-gray-900 text-white">
+                    Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsSwitchModalOpen(true)}
+            className="px-2.5 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-750 text-gray-200 text-xs font-bold border border-gray-700 transition-colors cursor-pointer shrink-0"
+          >
+            <span>Switch Match</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Top Navigation Bar with Clear Match Context */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-white p-4 rounded-3xl border border-gray-200/80 shadow-2xs">
         <div className="flex items-center gap-3">
-          <div className="text-xs font-bold uppercase tracking-wider text-blue-700">
-            <span>LIVE OPERATOR CONSOLE</span>
+          <button
+            onClick={onBackToScoreboard}
+            className="text-xs font-bold text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3.5 py-2 rounded-xl transition-colors cursor-pointer shrink-0"
+          >
+            <span>Back to Scoreboard</span>
+          </button>
+          <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
+              Live Operator Console • Match {currentMatchNumber} of {totalMatches}
+            </div>
+            <div className="text-sm text-gray-900 font-extrabold truncate">
+              {homeName} vs {awayName}
+            </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {matches.length > 1 && (
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
+              <span className="text-[11px] font-bold text-gray-500 whitespace-nowrap">Active Match:</span>
+              <select
+                value={matchState?.id || ''}
+                onChange={(e) => onSelectMatch && onSelectMatch(e.target.value)}
+                className="bg-transparent text-xs font-bold text-gray-900 outline-none cursor-pointer max-w-[180px] sm:max-w-[220px] truncate"
+                title="Select active match to control"
+              >
+                {matches.map((m, idx) => (
+                  <option key={m.id} value={m.id}>
+                    Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} ({m.home?.score ?? 0} - {m.away?.score ?? 0})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {onLogout && (
             <button
@@ -382,46 +460,65 @@ export function RemoteView({
         <div className="absolute -right-20 -top-20 w-60 h-60 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -left-20 -bottom-20 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Header Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-gray-800/80 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-mono font-bold tracking-wider uppercase text-gray-300">
-              {isRunning ? 'BROADCAST CLOCK RUNNING' : 'ARENA CLOCK PAUSED'}
-            </span>
-            <span className="text-gray-600">•</span>
-            <span className="text-gray-400 font-medium">{matchState?.venue || 'United Center'}</span>
+        {/* Top Header Strip with Prominent Match Identification */}
+        <div className="pb-4 mb-4 border-b border-gray-800/80">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs mb-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 font-extrabold uppercase tracking-wider text-[11px] border border-blue-500/30">
+                ACTIVE MATCH {currentMatchNumber} OF {totalMatches}
+              </span>
+              <span className="text-gray-600">•</span>
+              <span className="font-mono font-bold tracking-wider uppercase text-gray-300">
+                {isRunning ? 'BROADCAST CLOCK RUNNING' : 'ARENA CLOCK PAUSED'}
+              </span>
+              <span className="text-gray-600">•</span>
+              <span className="text-gray-400 font-medium">{matchState?.venue || 'United Center'}</span>
+            </div>
+
+            {/* Action buttons: Switch Match, Add Match, Delete Match */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsSwitchModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-bold border border-gray-700 transition-colors cursor-pointer"
+                title="Switch active match"
+              >
+                <span>Switch Match</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer"
+                title="Create new match"
+              >
+                <span>Add Match</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMatchToDelete(matchState?.id || (matches[0] && matches[0].id));
+                  setIsDeleteModalOpen(true);
+                }}
+                disabled={matches.length <= 1}
+                className="px-3 py-1.5 rounded-xl bg-red-950/60 hover:bg-red-900 text-red-300 text-xs font-bold border border-red-800/60 disabled:opacity-30 transition-colors cursor-pointer"
+                title="Open Delete Match pop-up"
+              >
+                <span>Delete Match</span>
+              </button>
+            </div>
           </div>
 
-          {/* Action buttons: Switch Match, Add Match, Delete Match */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsSwitchModalOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-bold border border-gray-700 transition-colors cursor-pointer"
-              title="Switch active match"
-            >
-              <span>Switch Match</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsAddModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer"
-              title="Create new match"
-            >
-              <span>Add Match</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMatchToDelete(matchState?.id || (matches[0] && matches[0].id));
-                setIsDeleteModalOpen(true);
-              }}
-              disabled={matches.length <= 1}
-              className="px-3 py-1.5 rounded-xl bg-red-950/60 hover:bg-red-900 text-red-300 text-xs font-bold border border-red-800/60 disabled:opacity-30 transition-colors cursor-pointer"
-              title="Open Delete Match pop-up"
-            >
-              <span>Delete Match</span>
-            </button>
+          <div className="bg-black/40 rounded-xl px-4 py-2 border border-gray-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400 uppercase font-semibold text-[10px] tracking-wider">Currently Editing:</span>
+              <span className="text-white font-extrabold text-sm">{homeName} vs {awayName}</span>
+              <span className="text-gray-500 font-mono text-[11px]">(ID: {matchState?.id || 'active'})</span>
+            </div>
+            <div className="text-gray-400 text-[11px] flex items-center gap-2">
+              <span>{matchState?.date || 'Scheduled'}</span>
+              <span>•</span>
+              <span className="text-blue-400 font-bold">{matchState?.status || (matchState?.period === 'FT' ? 'Finished' : `Period ${matchState?.period || '1'}`)}</span>
+            </div>
           </div>
         </div>
 
@@ -559,7 +656,10 @@ export function RemoteView({
             <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-gray-700" />
-                <h3 className="font-bold text-gray-900 text-base">Game Clock Control</h3>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base">Game Clock Control</h3>
+                  <p className="text-[11px] text-gray-400">Match {currentMatchNumber} of {totalMatches} • {homeName} vs {awayName}</p>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-[11px] font-semibold text-gray-400 hidden sm:inline">
@@ -708,7 +808,10 @@ export function RemoteView({
           {/* 4. DUAL TEAM STATIONS: GOALS, SOG & POWER PLAY */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-gray-900 text-base">Team Scoring & Shot Control</h3>
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">Team Scoring & Shot Control</h3>
+                <p className="text-xs text-gray-400">Controlling scores for {homeName} vs {awayName}</p>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -726,7 +829,7 @@ export function RemoteView({
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                      HOME TEAM
+                      HOME STATION: {homeName}
                     </span>
                     <button
                       type="button"
@@ -828,7 +931,7 @@ export function RemoteView({
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">
-                      AWAY TEAM
+                      AWAY STATION: {awayName}
                     </span>
                     <button
                       type="button"
@@ -1543,8 +1646,8 @@ export function RemoteView({
                               {m.home?.name || 'Home'} <span className="font-black text-gray-800">({m.home?.score ?? 0} - {m.away?.score ?? 0})</span> {m.away?.name || 'Away'}
                             </span>
                             {isCurrentActive && (
-                              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded shrink-0">
-                                Active In Remote
+                              <span className="text-blue-600 font-extrabold text-[11px] shrink-0 uppercase tracking-wide">
+                                ● Active In Remote
                               </span>
                             )}
                           </div>
@@ -1638,7 +1741,7 @@ export function RemoteView({
 
             <div className="py-4 overflow-y-auto space-y-2.5 flex-1 max-h-[50vh]">
               {matches && matches.length > 0 ? (
-                matches.map((m) => {
+                matches.map((m, idx) => {
                   const isCurrentActive = m.id === matchState?.id;
 
                   return (
@@ -1656,12 +1759,13 @@ export function RemoteView({
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-gray-400">Match {idx + 1}:</span>
                           <span className="font-bold text-gray-900 text-sm truncate">
                             {m.home?.name || 'Home'} <span className="font-black text-gray-800">({m.home?.score ?? 0} - {m.away?.score ?? 0})</span> {m.away?.name || 'Away'}
                           </span>
                           {isCurrentActive && (
-                            <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded shrink-0">
-                              Now Controlling
+                            <span className="text-blue-600 font-extrabold text-[11px] shrink-0 uppercase tracking-wide">
+                              ● Currently Editing
                             </span>
                           )}
                         </div>
@@ -1715,7 +1819,7 @@ export function RemoteView({
                   Log Match Incident
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Record an event directly into the live match incident timeline
+                  Recording to live timeline for <strong className="text-gray-900">{homeName} vs {awayName}</strong> ({matchState?.venue || 'Arena'})
                 </p>
               </div>
               <button
