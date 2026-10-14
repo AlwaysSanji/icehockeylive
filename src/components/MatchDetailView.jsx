@@ -318,8 +318,7 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         <tr>
-                          <td className="py-3 font-semibold text-gray-900 flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                          <td className="py-3 font-semibold text-gray-900">
                             {homeName}
                           </td>
                           <td className="py-3 text-center text-gray-700">{matchState.periodScores?.p1?.home ?? 0}</td>
@@ -331,8 +330,7 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
                           <td className="py-3 text-center font-black text-gray-900 text-base">{homeScore}</td>
                         </tr>
                         <tr>
-                          <td className="py-3 font-semibold text-gray-900 flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                          <td className="py-3 font-semibold text-gray-900">
                             {awayName}
                           </td>
                           <td className="py-3 text-center text-gray-700">{matchState.periodScores?.p1?.away ?? 0}</td>
@@ -423,8 +421,8 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
                         <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider">
                           {homeName} Starters
                         </h4>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                          isHomeLineupDeclared ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                        <span className={`text-xs font-semibold ${
+                          isHomeLineupDeclared ? 'text-blue-600' : 'text-gray-400'
                         }`}>
                           {isHomeLineupDeclared ? 'Declared' : 'Not Declared'}
                         </span>
@@ -464,8 +462,8 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
                         <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider">
                           {awayName} Starters
                         </h4>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                          isAwayLineupDeclared ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-500'
+                        <span className={`text-xs font-semibold ${
+                          isAwayLineupDeclared ? 'text-amber-600' : 'text-gray-400'
                         }`}>
                           {isAwayLineupDeclared ? 'Declared' : 'Not Declared'}
                         </span>
@@ -532,8 +530,8 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
                             <td className="py-2.5 font-semibold text-gray-900 flex items-center gap-2">
                               {row.team}
                               {isMatchTeam && (
-                                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
-                                  Match
+                                <span className="text-[11px] font-bold text-blue-600">
+                                  (Match)
                                 </span>
                               )}
                             </td>

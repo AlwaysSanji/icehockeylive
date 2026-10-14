@@ -298,8 +298,7 @@ export function RemoteView({
         </button>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-700">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
+          <div className="text-xs font-bold uppercase tracking-wider text-blue-700">
             <span>LIVE OPERATOR CONSOLE</span>
           </div>
 
@@ -323,7 +322,6 @@ export function RemoteView({
         {/* Top Header Strip */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-gray-800/80 text-xs">
           <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${isRunning ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
             <span className="font-mono font-bold tracking-wider uppercase text-gray-300">
               {isRunning ? 'BROADCAST CLOCK RUNNING' : 'ARENA CLOCK PAUSED'}
             </span>
@@ -393,9 +391,10 @@ export function RemoteView({
               <span>{awayScore}</span>
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-md bg-blue-900/60 text-blue-300 text-xs font-bold border border-blue-700/50">
+              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">
                 Period {matchState?.period || '1'}
               </span>
+              <span className="text-gray-600">•</span>
               <span className="font-mono text-xs font-bold text-gray-300 tracking-wider">
                 {formattedTime}
               </span>
@@ -663,17 +662,16 @@ export function RemoteView({
               <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
                       HOME TEAM
                     </span>
                     <button
                       type="button"
                       onClick={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay('home')}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-colors cursor-pointer ${
+                      className={`text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
                         matchState?.powerPlay === 'home'
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                          ? 'text-amber-500 underline underline-offset-2'
+                          : 'text-gray-400 hover:text-gray-600'
                       }`}
                     >
                       {matchState?.powerPlay === 'home' ? 'Power Play Active' : 'Toggle Power Play'}
@@ -766,17 +764,16 @@ export function RemoteView({
               <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-xs font-bold text-amber-600 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">
                       AWAY TEAM
                     </span>
                     <button
                       type="button"
                       onClick={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay('away')}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-colors cursor-pointer ${
+                      className={`text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
                         matchState?.powerPlay === 'away'
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                          ? 'text-amber-500 underline underline-offset-2'
+                          : 'text-gray-400 hover:text-gray-600'
                       }`}
                     >
                       {matchState?.powerPlay === 'away' ? 'Power Play Active' : 'Toggle Power Play'}

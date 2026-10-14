@@ -210,7 +210,6 @@ export default function App() {
               className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Firebase Firestore Cloud Real-Time Sync"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>Firebase Cloud: {activeConfig?.projectId || 'icehockeylive-01'}</span>
             </button>
             <span className="text-gray-300">•</span>

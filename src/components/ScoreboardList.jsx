@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Calendar, Search, Radio, Clock, Check, Menu } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Search } from 'lucide-react';
 import { NHL_LEAGUE_CARDS_TODAY, NHL_LEAGUE_CARDS_TOMORROW, NHL_TEAMS } from '../constants/hockeyData';
 import { useGameClock } from '../hooks/useGameClock';
 
@@ -177,53 +177,48 @@ export function ScoreboardList({ liveMatchState, matches = [], onSelectMatch }) 
           Hidden when selectedDate === 'Tomorrow'.
         */}
         {selectedDate === 'Today' && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-5 transition-all">
+          <div className="flex items-center gap-6 border-b border-gray-100 pb-2 mb-5 overflow-x-auto text-sm font-semibold">
             <button
               onClick={() => setActiveFilter('All')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+              className={`pb-2 transition-colors cursor-pointer ${
                 activeFilter === 'All'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'text-blue-600 border-b-2 border-blue-600 font-bold'
+                  : 'text-gray-400 hover:text-gray-700'
               }`}
             >
-              <Menu className="w-4 h-4" />
               <span>All</span>
             </button>
 
             <button
               onClick={() => setActiveFilter('Live')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+              className={`pb-2 transition-colors cursor-pointer ${
                 activeFilter === 'Live'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'text-emerald-600 border-b-2 border-emerald-600 font-bold'
+                  : 'text-gray-400 hover:text-gray-700'
               }`}
             >
-              <Radio className="w-4 h-4 text-emerald-500 animate-pulse" />
               <span>Live</span>
-              <span className="w-2 h-2 rounded-xs bg-emerald-500"></span>
             </button>
 
             <button
               onClick={() => setActiveFilter('Finished')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+              className={`pb-2 transition-colors cursor-pointer ${
                 activeFilter === 'Finished'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'text-blue-600 border-b-2 border-blue-600 font-bold'
+                  : 'text-gray-400 hover:text-gray-700'
               }`}
             >
-              <Check className="w-4 h-4" />
               <span>Finished</span>
             </button>
 
             <button
               onClick={() => setActiveFilter('Upcoming')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+              className={`pb-2 transition-colors cursor-pointer ${
                 activeFilter === 'Upcoming'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'text-blue-600 border-b-2 border-blue-600 font-bold'
+                  : 'text-gray-400 hover:text-gray-700'
               }`}
             >
-              <Clock className="w-4 h-4" />
               <span>Upcoming</span>
             </button>
           </div>

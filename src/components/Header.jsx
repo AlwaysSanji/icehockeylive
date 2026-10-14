@@ -76,8 +76,8 @@ export function Header({
               <div className="hidden lg:flex items-center px-2.5 py-1 text-xs text-gray-600 font-medium bg-gray-50 rounded-lg border border-gray-100">
                 <span className="truncate max-w-[120px]">{currentUser.name}</span>
                 {(currentUser.username === 'admin' || currentUser.email?.includes('admin')) && (
-                  <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-extrabold rounded">
-                    ADMIN
+                  <span className="ml-1.5 text-[10px] font-extrabold text-blue-600 uppercase">
+                    Admin
                   </span>
                 )}
               </div>

@@ -169,34 +169,34 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
           </p>
         </div>
 
-        {/* Filter Toggle Buttons (No icons in front of labels) */}
-        <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl">
+        {/* Filter Toggle Buttons (No pill capsules or icons) */}
+        <div className="flex items-center gap-4 text-xs font-bold">
           <button
             onClick={() => setActiveFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`py-1 transition-colors cursor-pointer ${
               activeFilter === 'all'
-                ? 'bg-white text-gray-900 shadow-xs'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'text-gray-900 border-b-2 border-gray-900 font-black'
+                : 'text-gray-400 hover:text-gray-700 font-semibold'
             }`}
           >
             <span>All Incidents</span>
           </button>
           <button
             onClick={() => setActiveFilter('goals')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`py-1 transition-colors cursor-pointer ${
               activeFilter === 'goals'
-                ? 'bg-white text-blue-600 shadow-xs'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'text-blue-600 border-b-2 border-blue-600 font-black'
+                : 'text-gray-400 hover:text-gray-700 font-semibold'
             }`}
           >
             <span>Goals Only</span>
           </button>
           <button
             onClick={() => setActiveFilter('penalties')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`py-1 transition-colors cursor-pointer ${
               activeFilter === 'penalties'
-                ? 'bg-white text-gray-900 shadow-xs'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'text-gray-900 border-b-2 border-gray-900 font-black'
+                : 'text-gray-400 hover:text-gray-700 font-semibold'
             }`}
           >
             <span>Penalties</span>
@@ -278,16 +278,13 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
         {/* Legend */}
         <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 pt-2 text-[11px] font-bold text-gray-500">
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-blue-600"></span>
-            <span>{homeName} Goal</span>
+            <span className="text-blue-600 font-extrabold">{homeName} Goal</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-amber-500"></span>
-            <span>{awayName} Goal</span>
+            <span className="text-amber-600 font-extrabold">{awayName} Goal</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-gray-700"></span>
-            <span>2 Min Penalty</span>
+            <span className="text-gray-700 font-extrabold">2 Min Penalty</span>
           </div>
           <div className="flex items-center gap-1.5 text-gray-400 font-normal">
             <span>• 20' & 40' Period Markers</span>
@@ -317,9 +314,9 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
               <div key={periodKey} className="space-y-3">
                 {/* Period Milestone Header */}
                 <div className="flex items-center gap-3">
-                  <div className="px-3 py-1 bg-gray-900 text-white text-xs font-black rounded-lg uppercase tracking-wider">
+                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider">
                     {group.name}
-                  </div>
+                  </h4>
                   <div className="flex-1 h-px bg-gray-200"></div>
                   <span className="text-xs text-gray-400 font-semibold">
                     {periodKey === 'P1' ? '00:00 - 20:00' : periodKey === 'P2' ? '20:00 - 40:00' : periodKey === 'P3' ? '40:00 - 60:00' : 'Overtime'}
@@ -344,7 +341,7 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                         >
                           {/* Timeline node dot */}
                           <div
-                            className={`absolute -left-6 sm:-left-8 top-4 sm:top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white shadow-xs ${
+                            className={`absolute -left-6 sm:-left-8 top-4 sm:top-1/2 -translate-y-1/2 w-2 h-2 ${
                               isGoal
                                 ? isHome ? 'bg-blue-600' : 'bg-amber-500'
                                 : 'bg-gray-700'
@@ -360,12 +357,12 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <span
-                                  className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                                  className={`text-xs font-black uppercase tracking-wider ${
                                     isGoal
                                       ? isHome
-                                        ? 'bg-blue-100 text-blue-700'
-                                        : 'bg-amber-100 text-amber-700'
-                                      : 'bg-gray-100 text-gray-700'
+                                        ? 'text-blue-600'
+                                        : 'text-amber-600'
+                                      : 'text-gray-700'
                                   }`}
                                 >
                                   {isGoal ? 'Goal' : '2 Min Penalty'}
