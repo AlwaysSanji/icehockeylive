@@ -46,7 +46,11 @@ export function RemoteView({
 
   // Delete Match Modal State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedMatchToDelete, setSelectedMatchToDelete] = useState(null);
   const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
+
+  // Switch Match Modal State
+  const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
 
   // When Home Team dropdown changes in Add Modal
   const handleHomeTeamChange = (key) => {
@@ -106,15 +110,21 @@ export function RemoteView({
     }
   };
 
-  // Submit Delete Match
-  const handleConfirmDelete = async () => {
-    if (!matchState?.id) return;
-    setIsSubmittingDelete(true);
+  // Submit Delete Match for chosen match ID
+  const handleDeleteSelectedMatch = async (targetId) => {
+    const idToDelete = targetId || selectedMatchToDelete;
+    if (!idToDelete) return;
+    if (matches.length <= 1) {
+      alert('Cannot delete the only remaining match. At least one match is required.');
+      return;
+    }
 
+    setIsSubmittingDelete(true);
     try {
       if (onDeleteMatch) {
-        await onDeleteMatch(matchState.id);
+        await onDeleteMatch(idToDelete);
       }
+      setSelectedMatchToDelete(null);
       setIsDeleteModalOpen(false);
     } catch (err) {
       console.error('Failed to delete match:', err);
@@ -174,37 +184,45 @@ export function RemoteView({
         </div>
       </div>
 
-      {/* Match Management & Switcher Bar */}
-      <div className="bg-white rounded-3xl p-5 shadow-xs border border-gray-100 mb-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        {/* Left: Active Match selector */}
+      {/* Match Management Bar (No dropdown, clean buttons & popups) */}
+      <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-xs border border-gray-100 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Active Match Info */}
         <div className="flex-1 min-w-0">
-          <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
             Current Match Under Remote Control
-          </label>
-          <div className="relative">
-            <select
-              value={matchState?.id || ''}
-              onChange={(e) => onSelectMatch && onSelectMatch(e.target.value)}
-              className="w-full bg-gray-50 hover:bg-gray-100/70 border border-gray-200 text-gray-900 font-bold text-sm sm:text-base rounded-xl px-3.5 py-2.5 focus:bg-white focus:border-blue-500 outline-none transition-colors cursor-pointer"
-            >
-              {matches && matches.length > 0 ? (
-                matches.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.home?.name || 'Home'} ({m.home?.score ?? 0}) vs {m.away?.name || 'Away'} ({m.away?.score ?? 0}) — {m.venue || 'Arena'} [{m.period || 'P1'}]
-                  </option>
-                ))
-              ) : (
-                <option value={matchState?.id}>
-                  {matchState?.home?.name} vs {matchState?.away?.name}
-                </option>
-              )}
-            </select>
+          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight">
+              {matchState?.home?.name || 'Home Team'}{' '}
+              <span className="text-blue-600 font-black">
+                {matchState?.home?.score ?? 0} - {matchState?.away?.score ?? 0}
+              </span>{' '}
+              {matchState?.away?.name || 'Away Team'}
+            </h2>
+            <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold">
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded-md border border-gray-200">
+                {matchState?.venue || 'Arena'}
+              </span>
+              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
+                {matchState?.period === 'FT' ? 'Full Time' : (matchState?.period === 'UPCOMING' ? 'Upcoming' : `Period ${matchState?.period || '1'}`)}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Right: Add Match and Delete Match Buttons */}
-        <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-4">
+        {/* Action Buttons: Switch Match, Add Match, Delete Match */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
+            type="button"
+            onClick={() => setIsSwitchModalOpen(true)}
+            className="px-3.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-all active:scale-98 cursor-pointer"
+            title="Switch which match is being controlled"
+          >
+            <span>Switch Match</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setIsAddModalOpen(true)}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-98 cursor-pointer"
             title="Create and add a new match to the scoreboard"
@@ -213,9 +231,13 @@ export function RemoteView({
           </button>
 
           <button
-            onClick={() => setIsDeleteModalOpen(true)}
-            disabled={!matchState || matches.length <= 1}
-            title={matches.length <= 1 ? "Cannot delete the last remaining match" : "Delete the current match from the scoreboard"}
+            type="button"
+            onClick={() => {
+              setSelectedMatchToDelete(matchState?.id || (matches[0] && matches[0].id));
+              setIsDeleteModalOpen(true);
+            }}
+            disabled={matches.length <= 1}
+            title={matches.length <= 1 ? "Cannot delete the last remaining match" : "Open Delete Match pop-up to select and delete a match"}
             className="px-4 py-2.5 bg-white hover:bg-red-50 text-red-600 hover:text-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-bold border border-gray-200 hover:border-red-200 shadow-xs hover:shadow-md transition-all active:scale-98 cursor-pointer"
           >
             <span>Delete Match</span>
@@ -756,38 +778,215 @@ export function RemoteView({
         </div>
       )}
 
-      {/* --- MODAL 2: DELETE MATCH CONFIRMATION MODAL --- */}
+      {/* --- MODAL 2: SELECT & DELETE MATCH POP-UP MODAL --- */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95">
-            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-
-            <h3 className="text-lg font-bold text-gray-900 text-center mb-2">
-              Delete This Match?
-            </h3>
-
-            <p className="text-xs text-gray-600 text-center mb-6 leading-relaxed">
-              Are you sure you want to delete <strong className="text-gray-900">{matchState?.home?.name} vs {matchState?.away?.name}</strong>? This fixture will be permanently removed from all scoreboards and user views.
-            </p>
-
-            <div className="flex items-center gap-3">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  Delete Match
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Select a match from the list below to delete it from the scoreboard
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-1 py-3 px-4 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm hover:bg-gray-50 transition-colors"
+                className="text-gray-400 hover:text-gray-700 text-sm font-bold p-1 rounded-lg hover:bg-gray-100 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Match List to Select from */}
+            <div className="py-4 overflow-y-auto space-y-2.5 flex-1 max-h-[50vh]">
+              {matches && matches.length > 0 ? (
+                matches.map((m) => {
+                  const isSelected = (selectedMatchToDelete || matchState?.id) === m.id;
+                  const isCurrentActive = m.id === matchState?.id;
+
+                  return (
+                    <div
+                      key={m.id}
+                      onClick={() => setSelectedMatchToDelete(m.id)}
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'border-red-500 bg-red-50/40 ring-1 ring-red-500/20'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/60 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Radio selection indicator */}
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                          isSelected ? 'border-red-600 bg-red-600' : 'border-gray-300'
+                        }`}>
+                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-900 text-sm truncate">
+                              {m.home?.name || 'Home'} <span className="font-black text-gray-800">({m.home?.score ?? 0} - {m.away?.score ?? 0})</span> {m.away?.name || 'Away'}
+                            </span>
+                            {isCurrentActive && (
+                              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded shrink-0">
+                                Active In Remote
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                            <span>{m.venue || 'Arena'}</span>
+                            <span>•</span>
+                            <span>{m.period === 'FT' ? 'Finished' : (m.period === 'UPCOMING' ? 'Upcoming' : `Period ${m.period}`)}</span>
+                            {m.date && (
+                              <>
+                                <span>•</span>
+                                <span>{m.date}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick Delete button per row */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSelectedMatch(m.id);
+                        }}
+                        disabled={isSubmittingDelete || matches.length <= 1}
+                        className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white text-xs font-bold border border-red-200 hover:border-red-600 transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        title="Delete this match"
+                      >
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-6 text-gray-400 text-xs">
+                  No matches available.
+                </div>
+              )}
+            </div>
+
+            {matches.length <= 1 && (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs mb-3">
+                Cannot delete the only remaining match. At least one match is required.
+              </div>
+            )}
+
+            {/* Bottom Actions */}
+            <div className="pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 <span>Cancel</span>
               </button>
 
               <button
                 type="button"
-                onClick={handleConfirmDelete}
-                disabled={isSubmittingDelete}
-                className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-sm shadow-md transition-all active:scale-98 cursor-pointer"
+                onClick={() => handleDeleteSelectedMatch(selectedMatchToDelete || matchState?.id)}
+                disabled={isSubmittingDelete || matches.length <= 1 || !(selectedMatchToDelete || matchState?.id)}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs shadow-xs hover:shadow-md transition-all active:scale-98 cursor-pointer"
               >
-                <span>{isSubmittingDelete ? 'Deleting...' : 'Confirm Delete'}</span>
+                <span>{isSubmittingDelete ? 'Deleting...' : 'Delete Selected Match'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL 3: SWITCH ACTIVE MATCH MODAL --- */}
+      {isSwitchModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  Select Match to Control
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Choose which fixture you want to manage in the Remote Control console
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSwitchModalOpen(false)}
+                className="text-gray-400 hover:text-gray-700 text-sm font-bold p-1 rounded-lg hover:bg-gray-100 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="py-4 overflow-y-auto space-y-2.5 flex-1 max-h-[50vh]">
+              {matches && matches.length > 0 ? (
+                matches.map((m) => {
+                  const isCurrentActive = m.id === matchState?.id;
+
+                  return (
+                    <div
+                      key={m.id}
+                      onClick={() => {
+                        if (onSelectMatch) onSelectMatch(m.id);
+                        setIsSwitchModalOpen(false);
+                      }}
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        isCurrentActive
+                          ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500/20'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/80 bg-white'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900 text-sm truncate">
+                            {m.home?.name || 'Home'} <span className="font-black text-gray-800">({m.home?.score ?? 0} - {m.away?.score ?? 0})</span> {m.away?.name || 'Away'}
+                          </span>
+                          {isCurrentActive && (
+                            <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded shrink-0">
+                              Now Controlling
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                          <span>{m.venue || 'Arena'}</span>
+                          <span>•</span>
+                          <span>{m.period === 'FT' ? 'Finished' : (m.period === 'UPCOMING' ? 'Upcoming' : `Period ${m.period}`)}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shrink-0 ${
+                          isCurrentActive
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 hover:bg-blue-600 hover:text-white text-gray-700'
+                        }`}
+                      >
+                        <span>{isCurrentActive ? 'Active' : 'Select'}</span>
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-6 text-gray-400 text-xs">
+                  No matches available.
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsSwitchModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 cursor-pointer"
+              >
+                <span>Close</span>
               </button>
             </div>
           </div>
