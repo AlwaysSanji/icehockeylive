@@ -7,7 +7,7 @@ import {
   Radio, 
   Trophy 
 } from 'lucide-react';
-import { NHL_TEAMS, NHL_STANDINGS, getTeamLineup } from '../constants/hockeyData';
+import { NHL_TEAMS, NHL_STANDINGS, NHL_LINEUPS, getTeamLineup } from '../constants/hockeyData';
 import { useGameClock } from '../hooks/useGameClock';
 import { formatPeriodName } from '../utils/timeFormatter';
 import { MatchTimeline } from './MatchTimeline';
@@ -37,14 +37,46 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
         ? `LIVE • ${formatPeriodName(matchState.period)} (${formattedTime})`
         : `${formatPeriodName(matchState.period)} (${formattedTime})`;
 
-  // Lineups for this specific match
+  // Determine whether lineups were declared for this match
+  const isHomeLineupDeclared = useMemo(() => {
+    if (matchState.lineupsDeclared === false) return false;
+    if (matchState.home?.lineup && Array.isArray(matchState.home.lineup)) {
+      return matchState.home.lineup.length > 0;
+    }
+    // If upcoming match and no explicit lineup attached, lineup is not declared
+    if (matchState.period === 'UPCOMING') return false;
+    // Known NHL team with declared lineup
+    return Boolean(homeTeamId && NHL_LINEUPS[homeTeamId]);
+  }, [matchState.lineupsDeclared, matchState.home?.lineup, matchState.period, homeTeamId]);
+
   const homeLineup = useMemo(() => {
-    return getTeamLineup(homeTeamId, homeName);
-  }, [homeTeamId, homeName]);
+    if (matchState.home?.lineup && matchState.home.lineup.length > 0) {
+      return matchState.home.lineup;
+    }
+    if (isHomeLineupDeclared) {
+      return getTeamLineup(homeTeamId, homeName);
+    }
+    return [];
+  }, [matchState.home?.lineup, isHomeLineupDeclared, homeTeamId, homeName]);
+
+  const isAwayLineupDeclared = useMemo(() => {
+    if (matchState.lineupsDeclared === false) return false;
+    if (matchState.away?.lineup && Array.isArray(matchState.away.lineup)) {
+      return matchState.away.lineup.length > 0;
+    }
+    if (matchState.period === 'UPCOMING') return false;
+    return Boolean(awayTeamId && NHL_LINEUPS[awayTeamId]);
+  }, [matchState.lineupsDeclared, matchState.away?.lineup, matchState.period, awayTeamId]);
 
   const awayLineup = useMemo(() => {
-    return getTeamLineup(awayTeamId, awayName);
-  }, [awayTeamId, awayName]);
+    if (matchState.away?.lineup && matchState.away.lineup.length > 0) {
+      return matchState.away.lineup;
+    }
+    if (isAwayLineupDeclared) {
+      return getTeamLineup(awayTeamId, awayName);
+    }
+    return [];
+  }, [matchState.away?.lineup, isAwayLineupDeclared, awayTeamId, awayName]);
 
   // Goal Events for this specific match
   const matchEvents = useMemo(() => {
@@ -370,52 +402,104 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
               />
             )}
 
-            {/* 2. LINEUPS TAB */}
+            {/* 3. LINEUPS TAB */}
             {activeTab === 'Lineups' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-3">
-                    {homeName} Starters
-                  </h4>
-                  <div className="divide-y divide-gray-100">
-                    {homeLineup.map(player => (
-                      <div key={player.number} className="py-2.5 flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-3">
-                          <span className="w-6 h-6 rounded-md bg-gray-100 text-gray-600 font-mono text-xs font-bold flex items-center justify-center">
-                            #{player.number}
-                          </span>
-                          <span className="font-semibold text-gray-900">{player.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500 font-bold">{player.pos}</span>
-                          <span className="text-xs text-gray-400">{player.nationality}</span>
-                        </div>
-                      </div>
-                    ))}
+              <div>
+                {!isHomeLineupDeclared && !isAwayLineupDeclared ? (
+                  <div className="py-12 px-6 rounded-2xl bg-gray-50/70 border border-gray-100 text-center">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Match Rosters</span>
+                    <h4 className="text-base font-bold text-gray-900 mb-1">
+                      Starting Lineups Not Declared
+                    </h4>
+                    <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
+                      Official starting rosters for {homeName} and {awayName} have not been declared yet. Starters are typically submitted 30–60 minutes prior to puck drop.
+                    </p>
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Home Team Lineup */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider">
+                          {homeName} Starters
+                        </h4>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          isHomeLineupDeclared ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {isHomeLineupDeclared ? 'Declared' : 'Not Declared'}
+                        </span>
+                      </div>
 
-                <div>
-                  <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3">
-                    {awayName} Starters
-                  </h4>
-                  <div className="divide-y divide-gray-100">
-                    {awayLineup.map(player => (
-                      <div key={player.number} className="py-2.5 flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-3">
-                          <span className="w-6 h-6 rounded-md bg-gray-100 text-gray-600 font-mono text-xs font-bold flex items-center justify-center">
-                            #{player.number}
-                          </span>
-                          <span className="font-semibold text-gray-900">{player.name}</span>
+                      {isHomeLineupDeclared && homeLineup.length > 0 ? (
+                        <div className="divide-y divide-gray-100">
+                          {homeLineup.map(player => (
+                            <div key={player.number} className="py-2.5 flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-3">
+                                <span className="w-6 h-6 rounded-md bg-gray-100 text-gray-600 font-mono text-xs font-bold flex items-center justify-center">
+                                  #{player.number}
+                                </span>
+                                <span className="font-semibold text-gray-900">{player.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 font-bold">{player.pos}</span>
+                                <span className="text-xs text-gray-400">{player.nationality}</span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500 font-bold">{player.pos}</span>
-                          <span className="text-xs text-gray-400">{player.nationality}</span>
+                      ) : (
+                        <div className="p-6 rounded-2xl bg-gray-50 border border-gray-100 text-center">
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Status</span>
+                          <h5 className="text-sm font-bold text-gray-700">Lineup Not Declared</h5>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Starting lineup for {homeName} has not been declared yet.
+                          </p>
                         </div>
+                      )}
+                    </div>
+
+                    {/* Away Team Lineup */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider">
+                          {awayName} Starters
+                        </h4>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          isAwayLineupDeclared ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {isAwayLineupDeclared ? 'Declared' : 'Not Declared'}
+                        </span>
                       </div>
-                    ))}
+
+                      {isAwayLineupDeclared && awayLineup.length > 0 ? (
+                        <div className="divide-y divide-gray-100">
+                          {awayLineup.map(player => (
+                            <div key={player.number} className="py-2.5 flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-3">
+                                <span className="w-6 h-6 rounded-md bg-gray-100 text-gray-600 font-mono text-xs font-bold flex items-center justify-center">
+                                  #{player.number}
+                                </span>
+                                <span className="font-semibold text-gray-900">{player.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 font-bold">{player.pos}</span>
+                                <span className="text-xs text-gray-400">{player.nationality}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-6 rounded-2xl bg-gray-50 border border-gray-100 text-center">
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Status</span>
+                          <h5 className="text-sm font-bold text-gray-700">Lineup Not Declared</h5>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Starting lineup for {awayName} has not been declared yet.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 

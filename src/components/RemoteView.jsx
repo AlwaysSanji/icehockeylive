@@ -59,6 +59,9 @@ export function RemoteView({
   const [addHomeScore, setAddHomeScore] = useState(0);
   const [addAwayScore, setAddAwayScore] = useState(0);
   const [addReferee, setAddReferee] = useState('Furlatt E.');
+  const [addLineupsDeclared, setAddLineupsDeclared] = useState(true);
+  const [addHomeLineup, setAddHomeLineup] = useState(() => getTeamLineup('blackhawks', 'Chicago Blackhawks'));
+  const [addAwayLineup, setAddAwayLineup] = useState(() => getTeamLineup('penguins', 'Pittsburgh Penguins'));
 
   // Delete Match Modal State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -104,6 +107,9 @@ export function RemoteView({
     if (key !== 'custom' && NHL_TEAMS[key]) {
       setAddHomeName(NHL_TEAMS[key].name);
       setAddVenue(NHL_TEAMS[key].stadium);
+      setAddHomeLineup(getTeamLineup(key, NHL_TEAMS[key].name));
+    } else {
+      setAddHomeLineup(getTeamLineup('custom', addHomeName));
     }
   };
 
@@ -112,6 +118,9 @@ export function RemoteView({
     setAddAwayKey(key);
     if (key !== 'custom' && NHL_TEAMS[key]) {
       setAddAwayName(NHL_TEAMS[key].name);
+      setAddAwayLineup(getTeamLineup(key, NHL_TEAMS[key].name));
+    } else {
+      setAddAwayLineup(getTeamLineup('custom', addAwayName));
     }
   };
 
@@ -127,15 +136,18 @@ export function RemoteView({
           name: addHomeName || 'Home Team',
           score: parseInt(addHomeScore, 10) || 0,
           shots: 0,
-          crestSvg: NHL_TEAMS[addHomeKey]?.crestSvg || null
+          crestSvg: NHL_TEAMS[addHomeKey]?.crestSvg || null,
+          lineup: addLineupsDeclared ? addHomeLineup : null
         },
         away: {
           id: addAwayKey,
           name: addAwayName || 'Away Team',
           score: parseInt(addAwayScore, 10) || 0,
           shots: 0,
-          crestSvg: NHL_TEAMS[addAwayKey]?.crestSvg || null
+          crestSvg: NHL_TEAMS[addAwayKey]?.crestSvg || null,
+          lineup: addLineupsDeclared ? addAwayLineup : null
         },
+        lineupsDeclared: addLineupsDeclared,
         venue: addVenue || 'Arena Stadium',
         date: addDate,
         dateTime: `${addDate} ${addTime}`,
@@ -1132,6 +1144,116 @@ export function RemoteView({
                     className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-blue-500 outline-none"
                   />
                 </div>
+              </div>
+
+              {/* Lineup Declaration Section */}
+              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                      Starting Lineups & Rosters
+                    </h4>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Declare the 6 starting players, or leave as "Not Declared"
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={addLineupsDeclared}
+                      onChange={(e) => setAddLineupsDeclared(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-gray-700">
+                      {addLineupsDeclared ? 'Lineups Declared' : 'Not Declared'}
+                    </span>
+                  </label>
+                </div>
+
+                {addLineupsDeclared ? (
+                  <div className="space-y-3 pt-2">
+                    {/* Home Starters */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold text-blue-800">
+                          {addHomeName} Starters ({addHomeLineup.length} Players)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAddHomeLineup(getTeamLineup(addHomeKey, addHomeName))}
+                          className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                        >
+                          Reset Roster
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {addHomeLineup.map((player, idx) => (
+                          <div key={idx} className="p-2 bg-white rounded-xl border border-gray-200 text-xs">
+                            <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold mb-1">
+                              <span>{player.pos}</span>
+                              <span>#{player.number}</span>
+                            </div>
+                            <input
+                              type="text"
+                              value={player.name}
+                              onChange={(e) => {
+                                const copy = [...addHomeLineup];
+                                copy[idx] = { ...copy[idx], name: e.target.value };
+                                setAddHomeLineup(copy);
+                              }}
+                              className="w-full font-semibold text-gray-800 text-xs outline-none bg-transparent"
+                              placeholder="Player Name"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Away Starters */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold text-amber-800">
+                          {addAwayName} Starters ({addAwayLineup.length} Players)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAddAwayLineup(getTeamLineup(addAwayKey, addAwayName))}
+                          className="text-[11px] text-amber-600 hover:text-amber-800 font-semibold cursor-pointer"
+                        >
+                          Reset Roster
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {addAwayLineup.map((player, idx) => (
+                          <div key={idx} className="p-2 bg-white rounded-xl border border-gray-200 text-xs">
+                            <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold mb-1">
+                              <span>{player.pos}</span>
+                              <span>#{player.number}</span>
+                            </div>
+                            <input
+                              type="text"
+                              value={player.name}
+                              onChange={(e) => {
+                                const copy = [...addAwayLineup];
+                                copy[idx] = { ...copy[idx], name: e.target.value };
+                                setAddAwayLineup(copy);
+                              }}
+                              className="w-full font-semibold text-gray-800 text-xs outline-none bg-transparent"
+                              placeholder="Player Name"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-white rounded-xl border border-dashed border-gray-300 text-center text-xs text-gray-500">
+                    <span className="font-semibold text-gray-700">Lineup Status: Not Declared.</span>
+                    <p className="mt-0.5 text-[11px] text-gray-400">
+                      The match will display "Lineup Not Declared" until rosters are declared.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">

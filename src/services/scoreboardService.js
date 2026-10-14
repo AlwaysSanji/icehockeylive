@@ -250,15 +250,18 @@ export async function addMatch(matchData) {
       name: matchData.home?.name || 'Home Team',
       score: matchData.home?.score !== undefined ? parseInt(matchData.home.score, 10) : 0,
       shots: matchData.home?.shots !== undefined ? parseInt(matchData.home.shots, 10) : 0,
-      crestSvg: matchData.home?.crestSvg || null
+      crestSvg: matchData.home?.crestSvg || null,
+      lineup: matchData.home?.lineup || null
     },
     away: {
       id: matchData.away?.id || 'custom-away',
       name: matchData.away?.name || 'Away Team',
       score: matchData.away?.score !== undefined ? parseInt(matchData.away.score, 10) : 0,
       shots: matchData.away?.shots !== undefined ? parseInt(matchData.away.shots, 10) : 0,
-      crestSvg: matchData.away?.crestSvg || null
+      crestSvg: matchData.away?.crestSvg || null,
+      lineup: matchData.away?.lineup || null
     },
+    lineupsDeclared: matchData.lineupsDeclared !== undefined ? matchData.lineupsDeclared : Boolean(matchData.home?.lineup?.length || matchData.away?.lineup?.length),
     period: matchData.period || '1',
     periodScores: matchData.periodScores || {
       p1: { home: 0, away: 0 },
