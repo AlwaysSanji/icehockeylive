@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #F8F9FA;
+    color: #1E293B;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Custom digital segment font look for live clock */
+.font-digital {
+  font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  letter-spacing: -0.05em;
+}
+
+/* Subtle glow animations for goals and live indicators */
+@keyframes pulse-live {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+}
+
+.animate-pulse-live {
+  animation: pulse-live 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes goal-flash {
+  0% {
+    background-color: rgba(16, 185, 129, 0.3);
+    transform: scale(1.05);
+  }
+  100% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+}
+
+.animate-goal {
+  animation: goal-flash 1s ease-out;
+}
