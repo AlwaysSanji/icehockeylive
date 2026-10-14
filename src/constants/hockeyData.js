@@ -520,18 +520,160 @@ export const NHL_LINEUPS = {
   ]
 };
 
-// Return starter lineup for any team (with smart fallback for custom teams)
+// Generate an official-style SVG crest for admin-created teams
+export function generateTeamCrestSvg(teamName = 'Custom Team', primaryColor = '#1e40af') {
+  const cleanName = (teamName || 'Custom Team').trim();
+  const words = cleanName.split(/\s+/).filter(Boolean);
+  let initials = 'CT';
+  if (words.length >= 2) {
+    initials = (words[0][0] + words[1][0]).toUpperCase();
+  } else if (words.length === 1 && words[0].length >= 2) {
+    initials = words[0].slice(0, 2).toUpperCase();
+  } else if (words.length === 1) {
+    initials = words[0][0].toUpperCase();
+  }
+
+  // Pick deterministic secondary color
+  const colors = ['#2563eb', '#dc2626', '#059669', '#d97706', '#7c3aed', '#0891b2', '#4b5563', '#be123c'];
+  let hash = 0;
+  for (let i = 0; i < cleanName.length; i++) {
+    hash = cleanName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const color = colors[Math.abs(hash) % colors.length];
+
+  return `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="50" r="46" fill="${color}" stroke="#ffffff" stroke-width="3"/><circle cx="50" cy="50" r="39" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2"/><text x="50" y="58" font-size="28" font-weight="900" font-family="system-ui, sans-serif" fill="#ffffff" text-anchor="middle" letter-spacing="1">${initials}</text></svg>`;
+}
+
+// Known NHL / Hockey team suggestions if admin types or selects them
+export const KNOWN_HOCKEY_SUGGESTIONS = {
+  'red wings': [
+    { number: 34, name: 'A. Lyon', pos: 'G', nationality: 'USA' },
+    { number: 71, name: 'D. Larkin', pos: 'C', nationality: 'USA' },
+    { number: 88, name: 'P. Kane', pos: 'RW', nationality: 'USA' },
+    { number: 23, name: 'L. Raymond', pos: 'LW', nationality: 'SWE' },
+    { number: 53, name: 'M. Seider', pos: 'D', nationality: 'GER' },
+    { number: 8, name: 'B. Chiarot', pos: 'D', nationality: 'CAN' }
+  ],
+  'detroit': [
+    { number: 34, name: 'A. Lyon', pos: 'G', nationality: 'USA' },
+    { number: 71, name: 'D. Larkin', pos: 'C', nationality: 'USA' },
+    { number: 88, name: 'P. Kane', pos: 'RW', nationality: 'USA' },
+    { number: 23, name: 'L. Raymond', pos: 'LW', nationality: 'SWE' },
+    { number: 53, name: 'M. Seider', pos: 'D', nationality: 'GER' },
+    { number: 8, name: 'B. Chiarot', pos: 'D', nationality: 'CAN' }
+  ],
+  'kraken': [
+    { number: 35, name: 'J. Daccord', pos: 'G', nationality: 'USA' },
+    { number: 10, name: 'M. Beniers', pos: 'C', nationality: 'USA' },
+    { number: 19, name: 'J. McCann', pos: 'LW', nationality: 'CAN' },
+    { number: 7, name: 'J. Eberle', pos: 'RW', nationality: 'CAN' },
+    { number: 29, name: 'V. Dunn', pos: 'D', nationality: 'CAN' },
+    { number: 6, name: 'A. Larsson', pos: 'D', nationality: 'SWE' }
+  ],
+  'seattle': [
+    { number: 35, name: 'J. Daccord', pos: 'G', nationality: 'USA' },
+    { number: 10, name: 'M. Beniers', pos: 'C', nationality: 'USA' },
+    { number: 19, name: 'J. McCann', pos: 'LW', nationality: 'CAN' },
+    { number: 7, name: 'J. Eberle', pos: 'RW', nationality: 'CAN' },
+    { number: 29, name: 'V. Dunn', pos: 'D', nationality: 'CAN' },
+    { number: 6, name: 'A. Larsson', pos: 'D', nationality: 'SWE' }
+  ],
+  'rangers': [
+    { number: 31, name: 'I. Shesterkin', pos: 'G', nationality: 'RUS' },
+    { number: 93, name: 'M. Zibanejad', pos: 'C', nationality: 'SWE' },
+    { number: 10, name: 'A. Panarin', pos: 'LW', nationality: 'RUS' },
+    { number: 13, name: 'A. Lafreniere', pos: 'RW', nationality: 'CAN' },
+    { number: 23, name: 'A. Fox', pos: 'D', nationality: 'USA' },
+    { number: 79, name: 'K. Miller', pos: 'D', nationality: 'USA' }
+  ],
+  'canucks': [
+    { number: 35, name: 'T. Demko', pos: 'G', nationality: 'USA' },
+    { number: 40, name: 'E. Pettersson', pos: 'C', nationality: 'SWE' },
+    { number: 9, name: 'J. Miller', pos: 'C', nationality: 'USA' },
+    { number: 6, name: 'B. Boeser', pos: 'RW', nationality: 'USA' },
+    { number: 43, name: 'Q. Hughes', pos: 'D', nationality: 'USA' },
+    { number: 17, name: 'F. Hronek', pos: 'D', nationality: 'CZE' }
+  ],
+  'lightning': [
+    { number: 88, name: 'A. Vasilevskiy', pos: 'G', nationality: 'RUS' },
+    { number: 21, name: 'B. Point', pos: 'C', nationality: 'CAN' },
+    { number: 86, name: 'N. Kucherov', pos: 'RW', nationality: 'RUS' },
+    { number: 59, name: 'J. Guentzel', pos: 'LW', nationality: 'USA' },
+    { number: 77, name: 'V. Hedman', pos: 'D', nationality: 'SWE' },
+    { number: 27, name: 'R. McDonagh', pos: 'D', nationality: 'USA' }
+  ],
+  'panthers': [
+    { number: 72, name: 'S. Bobrovsky', pos: 'G', nationality: 'RUS' },
+    { number: 16, name: 'A. Barkov', pos: 'C', nationality: 'FIN' },
+    { number: 19, name: 'M. Tkachuk', pos: 'LW', nationality: 'USA' },
+    { number: 13, name: 'S. Reinhart', pos: 'RW', nationality: 'CAN' },
+    { number: 5, name: 'A. Ekblad', pos: 'D', nationality: 'CAN' },
+    { number: 42, name: 'G. Forsling', pos: 'D', nationality: 'SWE' }
+  ],
+  'capitals': [
+    { number: 79, name: 'C. Lindgren', pos: 'G', nationality: 'USA' },
+    { number: 8, name: 'A. Ovechkin', pos: 'LW', nationality: 'RUS' },
+    { number: 17, name: 'D. Strome', pos: 'C', nationality: 'CAN' },
+    { number: 43, name: 'T. Wilson', pos: 'RW', nationality: 'CAN' },
+    { number: 74, name: 'J. Carlson', pos: 'D', nationality: 'USA' },
+    { number: 6, name: 'J. Chychrun', pos: 'D', nationality: 'CAN' }
+  ]
+};
+
+// Generate intelligent, realistic starting lineup suggestions for any team name
+export function suggestTeamLineup(teamName = '', existingLineup = null) {
+  if (existingLineup && Array.isArray(existingLineup) && existingLineup.length > 0) {
+    return JSON.parse(JSON.stringify(existingLineup));
+  }
+
+  const query = (teamName || '').toLowerCase().trim();
+
+  // Check known keyword matches
+  for (const [key, roster] of Object.entries(KNOWN_HOCKEY_SUGGESTIONS)) {
+    if (query.includes(key)) {
+      return JSON.parse(JSON.stringify(roster));
+    }
+  }
+
+  // Realistic starter pools for custom teams
+  const nameParts = (teamName || 'Custom Team').trim().split(/\s+/);
+  const cityOrPrefix = nameParts[0] || 'Team';
+
+  return [
+    { number: 30, name: `J. Carter`, pos: 'G', nationality: 'CAN' },
+    { number: 19, name: `M. Vance`, pos: 'C', nationality: 'USA' },
+    { number: 11, name: `D. Stone`, pos: 'LW', nationality: 'CAN' },
+    { number: 88, name: `T. Hayes`, pos: 'RW', nationality: 'SWE' },
+    { number: 4, name: `R. Miller`, pos: 'D', nationality: 'USA' },
+    { number: 27, name: `C. Reed`, pos: 'D', nationality: 'FIN' }
+  ];
+}
+
+// Return starter lineup for any team (checks official, custom remembered, or suggests)
 export function getTeamLineup(teamId, teamName) {
   if (teamId && NHL_LINEUPS[teamId]) {
     return NHL_LINEUPS[teamId];
   }
-  const prefix = (teamName || 'Team').split(' ')[0] || 'T';
-  return [
-    { number: 1, name: `${prefix} Goalie`, pos: 'G', nationality: 'USA' },
-    { number: 9, name: `${prefix} Forward 1`, pos: 'C', nationality: 'CAN' },
-    { number: 17, name: `${prefix} Forward 2`, pos: 'LW', nationality: 'USA' },
-    { number: 88, name: `${prefix} Forward 3`, pos: 'RW', nationality: 'SWE' },
-    { number: 4, name: `${prefix} Defense 1`, pos: 'D', nationality: 'CAN' },
-    { number: 27, name: `${prefix} Defense 2`, pos: 'D', nationality: 'FIN' }
-  ];
+
+  // Check if team is in remembered custom teams in localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const savedTeams = localStorage.getItem('nhl_hockey_custom_teams');
+      if (savedTeams) {
+        const parsed = JSON.parse(savedTeams);
+        const match = Array.isArray(parsed) && parsed.find(t => 
+          (teamId && t.id === teamId) || 
+          (teamName && t.name?.toLowerCase() === teamName.toLowerCase())
+        );
+        if (match && Array.isArray(match.lineup) && match.lineup.length > 0) {
+          return JSON.parse(JSON.stringify(match.lineup));
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading custom teams in getTeamLineup:', e);
+    }
+  }
+
+  return suggestTeamLineup(teamName);
 }
+

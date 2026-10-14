@@ -9,7 +9,8 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { useGameClock } from '../hooks/useGameClock';
-import { NHL_TEAMS, getTeamLineup } from '../constants/hockeyData';
+import { NHL_TEAMS, getTeamLineup, suggestTeamLineup, generateTeamCrestSvg } from '../constants/hockeyData';
+import { getCustomTeams, saveCustomTeam, deleteCustomTeam } from '../services/scoreboardService';
 import { AdminPanel } from './AdminPanel';
 
 export function RemoteView({ 
@@ -45,8 +46,18 @@ export function RemoteView({
   const homeLineup = useMemo(() => getTeamLineup(homeTeamId, homeName), [homeTeamId, homeName]);
   const awayLineup = useMemo(() => getTeamLineup(awayTeamId, awayName), [awayTeamId, awayName]);
 
+  // Remembered Custom Teams created by admin
+  const [customTeams, setCustomTeams] = useState(() => getCustomTeams());
+
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // Refresh custom teams list whenever modal is opened
+  useEffect(() => {
+    if (isAddModalOpen) {
+      setCustomTeams(getCustomTeams());
+    }
+  }, [isAddModalOpen]);
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [addHomeKey, setAddHomeKey] = useState('blackhawks');
   const [addHomeName, setAddHomeName] = useState('Chicago Blackhawks');
@@ -104,23 +115,38 @@ export function RemoteView({
   // When Home Team dropdown changes in Add Modal
   const handleHomeTeamChange = (key) => {
     setAddHomeKey(key);
-    if (key !== 'custom' && NHL_TEAMS[key]) {
-      setAddHomeName(NHL_TEAMS[key].name);
-      setAddVenue(NHL_TEAMS[key].stadium);
-      setAddHomeLineup(getTeamLineup(key, NHL_TEAMS[key].name));
+    if (key === 'custom') {
+      const suggested = suggestTeamLineup(addHomeName);
+      setAddHomeLineup(suggested);
     } else {
-      setAddHomeLineup(getTeamLineup('custom', addHomeName));
+      const customMatch = customTeams.find(t => t.id === key);
+      if (customMatch) {
+        setAddHomeName(customMatch.name);
+        if (customMatch.stadium) setAddVenue(customMatch.stadium);
+        setAddHomeLineup(suggestTeamLineup(customMatch.name, customMatch.lineup));
+      } else if (NHL_TEAMS[key]) {
+        setAddHomeName(NHL_TEAMS[key].name);
+        setAddVenue(NHL_TEAMS[key].stadium);
+        setAddHomeLineup(getTeamLineup(key, NHL_TEAMS[key].name));
+      }
     }
   };
 
   // When Away Team dropdown changes in Add Modal
   const handleAwayTeamChange = (key) => {
     setAddAwayKey(key);
-    if (key !== 'custom' && NHL_TEAMS[key]) {
-      setAddAwayName(NHL_TEAMS[key].name);
-      setAddAwayLineup(getTeamLineup(key, NHL_TEAMS[key].name));
+    if (key === 'custom') {
+      const suggested = suggestTeamLineup(addAwayName);
+      setAddAwayLineup(suggested);
     } else {
-      setAddAwayLineup(getTeamLineup('custom', addAwayName));
+      const customMatch = customTeams.find(t => t.id === key);
+      if (customMatch) {
+        setAddAwayName(customMatch.name);
+        setAddAwayLineup(suggestTeamLineup(customMatch.name, customMatch.lineup));
+      } else if (NHL_TEAMS[key]) {
+        setAddAwayName(NHL_TEAMS[key].name);
+        setAddAwayLineup(getTeamLineup(key, NHL_TEAMS[key].name));
+      }
     }
   };
 
@@ -130,21 +156,57 @@ export function RemoteView({
     setIsSubmittingAdd(true);
 
     try {
+      let finalHomeId = addHomeKey;
+      let finalHomeCrest = NHL_TEAMS[addHomeKey]?.crestSvg;
+      const isHomeCustom = addHomeKey === 'custom' || addHomeKey.startsWith('custom-') || !NHL_TEAMS[addHomeKey];
+
+      if (isHomeCustom && addHomeName) {
+        const savedHome = saveCustomTeam({
+          id: addHomeKey !== 'custom' ? addHomeKey : null,
+          name: addHomeName,
+          stadium: addVenue,
+          crestSvg: customTeams.find(t => t.id === addHomeKey)?.crestSvg || generateTeamCrestSvg(addHomeName),
+          lineup: addHomeLineup
+        });
+        if (savedHome) {
+          finalHomeId = savedHome.id;
+          finalHomeCrest = savedHome.crestSvg;
+        }
+      }
+
+      let finalAwayId = addAwayKey;
+      let finalAwayCrest = NHL_TEAMS[addAwayKey]?.crestSvg;
+      const isAwayCustom = addAwayKey === 'custom' || addAwayKey.startsWith('custom-') || !NHL_TEAMS[addAwayKey];
+
+      if (isAwayCustom && addAwayName) {
+        const savedAway = saveCustomTeam({
+          id: addAwayKey !== 'custom' ? addAwayKey : null,
+          name: addAwayName,
+          stadium: addVenue,
+          crestSvg: customTeams.find(t => t.id === addAwayKey)?.crestSvg || generateTeamCrestSvg(addAwayName),
+          lineup: addAwayLineup
+        });
+        if (savedAway) {
+          finalAwayId = savedAway.id;
+          finalAwayCrest = savedAway.crestSvg;
+        }
+      }
+
       const payload = {
         home: {
-          id: addHomeKey,
+          id: finalHomeId,
           name: addHomeName || 'Home Team',
           score: parseInt(addHomeScore, 10) || 0,
           shots: 0,
-          crestSvg: NHL_TEAMS[addHomeKey]?.crestSvg || null,
+          crestSvg: finalHomeCrest || generateTeamCrestSvg(addHomeName),
           lineup: addLineupsDeclared ? addHomeLineup : null
         },
         away: {
-          id: addAwayKey,
+          id: finalAwayId,
           name: addAwayName || 'Away Team',
           score: parseInt(addAwayScore, 10) || 0,
           shots: 0,
-          crestSvg: NHL_TEAMS[addAwayKey]?.crestSvg || null,
+          crestSvg: finalAwayCrest || generateTeamCrestSvg(addAwayName),
           lineup: addLineupsDeclared ? addAwayLineup : null
         },
         lineupsDeclared: addLineupsDeclared,
@@ -160,6 +222,7 @@ export function RemoteView({
       if (onAddMatch) {
         await onAddMatch(payload);
       }
+      setCustomTeams(getCustomTeams());
       setIsAddModalOpen(false);
     } catch (err) {
       console.error('Failed to create match:', err);
@@ -980,58 +1043,132 @@ export function RemoteView({
             <form onSubmit={handleCreateMatchSubmit} className="space-y-4">
               {/* Home Team Selection */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Home Team
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Home Team
+                  </label>
+                  {customTeams.some(t => t.id === addHomeKey) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        deleteCustomTeam(addHomeKey);
+                        setCustomTeams(getCustomTeams());
+                        handleHomeTeamChange('blackhawks');
+                      }}
+                      className="text-[11px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
+                    >
+                      Delete Remembered Team
+                    </button>
+                  )}
+                </div>
                 <select
                   value={addHomeKey}
                   onChange={(e) => handleHomeTeamChange(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:bg-white focus:border-blue-500 outline-none mb-2"
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:bg-white focus:border-blue-500 outline-none mb-2 cursor-pointer"
                 >
-                  {Object.entries(NHL_TEAMS).map(([key, team]) => (
-                    <option key={key} value={key}>
-                      {team.name} ({team.stadium})
-                    </option>
-                  ))}
-                  <option value="custom">-- Custom Team --</option>
+                  <optgroup label="Official NHL Teams">
+                    {Object.entries(NHL_TEAMS).map(([key, team]) => (
+                      <option key={key} value={key}>
+                        {team.name} ({team.stadium})
+                      </option>
+                    ))}
+                  </optgroup>
+                  {customTeams.length > 0 && (
+                    <optgroup label="Admin Created Teams (Remembered)">
+                      {customTeams.map((team) => (
+                        <option key={team.id} value={team.id}>
+                          {team.name} ({team.stadium || 'Custom Venue'})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <option value="custom">+ Create New Custom Team...</option>
                 </select>
 
-                <input
-                  type="text"
-                  value={addHomeName}
-                  onChange={(e) => setAddHomeName(e.target.value)}
-                  placeholder="Home Team Name"
-                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-blue-500 outline-none"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={addHomeName}
+                    onChange={(e) => setAddHomeName(e.target.value)}
+                    placeholder="Home Team Name"
+                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-blue-500 outline-none"
+                    required
+                  />
+                  {addHomeKey === 'custom' && (
+                    <button
+                      type="button"
+                      onClick={() => setAddHomeLineup(suggestTeamLineup(addHomeName))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                    >
+                      Suggest Lineup
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Away Team Selection */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Away Team
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Away Team
+                  </label>
+                  {customTeams.some(t => t.id === addAwayKey) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        deleteCustomTeam(addAwayKey);
+                        setCustomTeams(getCustomTeams());
+                        handleAwayTeamChange('penguins');
+                      }}
+                      className="text-[11px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
+                    >
+                      Delete Remembered Team
+                    </button>
+                  )}
+                </div>
                 <select
                   value={addAwayKey}
                   onChange={(e) => handleAwayTeamChange(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:bg-white focus:border-blue-500 outline-none mb-2"
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:bg-white focus:border-blue-500 outline-none mb-2 cursor-pointer"
                 >
-                  {Object.entries(NHL_TEAMS).map(([key, team]) => (
-                    <option key={key} value={key}>
-                      {team.name}
-                    </option>
-                  ))}
-                  <option value="custom">-- Custom Team --</option>
+                  <optgroup label="Official NHL Teams">
+                    {Object.entries(NHL_TEAMS).map(([key, team]) => (
+                      <option key={key} value={key}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {customTeams.length > 0 && (
+                    <optgroup label="Admin Created Teams (Remembered)">
+                      {customTeams.map((team) => (
+                        <option key={team.id} value={team.id}>
+                          {team.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <option value="custom">+ Create New Custom Team...</option>
                 </select>
 
-                <input
-                  type="text"
-                  value={addAwayName}
-                  onChange={(e) => setAddAwayName(e.target.value)}
-                  placeholder="Away Team Name"
-                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-blue-500 outline-none"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={addAwayName}
+                    onChange={(e) => setAddAwayName(e.target.value)}
+                    placeholder="Away Team Name"
+                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-blue-500 outline-none"
+                    required
+                  />
+                  {addAwayKey === 'custom' && (
+                    <button
+                      type="button"
+                      onClick={() => setAddAwayLineup(suggestTeamLineup(addAwayName))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-amber-600 hover:text-amber-800 font-semibold cursor-pointer"
+                    >
+                      Suggest Lineup
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Venue & Date */}
@@ -1175,20 +1312,59 @@ export function RemoteView({
                         <span className="text-xs font-bold text-blue-800">
                           {addHomeName} Starters ({addHomeLineup.length} Players)
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setAddHomeLineup(getTeamLineup(addHomeKey, addHomeName))}
-                          className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
-                        >
-                          Reset Roster
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setAddHomeLineup(suggestTeamLineup(addHomeName))}
+                            className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                            title="Generate intelligent starter suggestions for this team"
+                          >
+                            Suggest Lineup
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAddHomeLineup(getTeamLineup(addHomeKey, addHomeName))}
+                            className="text-[11px] text-gray-500 hover:text-gray-800 font-semibold cursor-pointer"
+                            title="Reset to team's saved or default roster"
+                          >
+                            Reset Roster
+                          </button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {addHomeLineup.map((player, idx) => (
-                          <div key={idx} className="p-2 bg-white rounded-xl border border-gray-200 text-xs">
-                            <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold mb-1">
-                              <span>{player.pos}</span>
-                              <span>#{player.number}</span>
+                          <div key={idx} className="p-2 bg-white rounded-xl border border-gray-200 text-xs shadow-2xs">
+                            <div className="flex items-center justify-between text-[10px] text-gray-500 font-bold mb-1.5">
+                              <select
+                                value={player.pos}
+                                onChange={(e) => {
+                                  const copy = [...addHomeLineup];
+                                  copy[idx] = { ...copy[idx], pos: e.target.value };
+                                  setAddHomeLineup(copy);
+                                }}
+                                className="bg-transparent font-bold text-gray-700 outline-none cursor-pointer"
+                              >
+                                <option value="G">G</option>
+                                <option value="C">C</option>
+                                <option value="LW">LW</option>
+                                <option value="RW">RW</option>
+                                <option value="D">D</option>
+                              </select>
+                              <div className="flex items-center gap-0.5 text-gray-500">
+                                <span>#</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="99"
+                                  value={player.number}
+                                  onChange={(e) => {
+                                    const copy = [...addHomeLineup];
+                                    copy[idx] = { ...copy[idx], number: parseInt(e.target.value, 10) || 1 };
+                                    setAddHomeLineup(copy);
+                                  }}
+                                  className="w-7 font-mono font-bold text-gray-700 outline-none bg-transparent text-right"
+                                />
+                              </div>
                             </div>
                             <input
                               type="text"
@@ -1212,20 +1388,59 @@ export function RemoteView({
                         <span className="text-xs font-bold text-amber-800">
                           {addAwayName} Starters ({addAwayLineup.length} Players)
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setAddAwayLineup(getTeamLineup(addAwayKey, addAwayName))}
-                          className="text-[11px] text-amber-600 hover:text-amber-800 font-semibold cursor-pointer"
-                        >
-                          Reset Roster
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setAddAwayLineup(suggestTeamLineup(addAwayName))}
+                            className="text-[11px] text-amber-600 hover:text-amber-800 font-semibold cursor-pointer"
+                            title="Generate intelligent starter suggestions for this team"
+                          >
+                            Suggest Lineup
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAddAwayLineup(getTeamLineup(addAwayKey, addAwayName))}
+                            className="text-[11px] text-gray-500 hover:text-gray-800 font-semibold cursor-pointer"
+                            title="Reset to team's saved or default roster"
+                          >
+                            Reset Roster
+                          </button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {addAwayLineup.map((player, idx) => (
-                          <div key={idx} className="p-2 bg-white rounded-xl border border-gray-200 text-xs">
-                            <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold mb-1">
-                              <span>{player.pos}</span>
-                              <span>#{player.number}</span>
+                          <div key={idx} className="p-2 bg-white rounded-xl border border-gray-200 text-xs shadow-2xs">
+                            <div className="flex items-center justify-between text-[10px] text-gray-500 font-bold mb-1.5">
+                              <select
+                                value={player.pos}
+                                onChange={(e) => {
+                                  const copy = [...addAwayLineup];
+                                  copy[idx] = { ...copy[idx], pos: e.target.value };
+                                  setAddAwayLineup(copy);
+                                }}
+                                className="bg-transparent font-bold text-gray-700 outline-none cursor-pointer"
+                              >
+                                <option value="G">G</option>
+                                <option value="C">C</option>
+                                <option value="LW">LW</option>
+                                <option value="RW">RW</option>
+                                <option value="D">D</option>
+                              </select>
+                              <div className="flex items-center gap-0.5 text-gray-500">
+                                <span>#</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="99"
+                                  value={player.number}
+                                  onChange={(e) => {
+                                    const copy = [...addAwayLineup];
+                                    copy[idx] = { ...copy[idx], number: parseInt(e.target.value, 10) || 1 };
+                                    setAddAwayLineup(copy);
+                                  }}
+                                  className="w-7 font-mono font-bold text-gray-700 outline-none bg-transparent text-right"
+                                />
+                              </div>
                             </div>
                             <input
                               type="text"

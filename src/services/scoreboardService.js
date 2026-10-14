@@ -1,12 +1,13 @@
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../firebase/config';
-import { DEFAULT_MATCH_STATE, DEFAULT_MATCHES_LIST } from '../constants/hockeyData';
+import { DEFAULT_MATCH_STATE, DEFAULT_MATCHES_LIST, NHL_TEAMS, generateTeamCrestSvg, suggestTeamLineup } from '../constants/hockeyData';
 
 const COLLECTION_NAME = 'scoreboards';
 const DOC_ID = 'active_match';
 const LOCAL_STORAGE_KEY = 'nhl_hockey_live_match';
 const LOCAL_STORAGE_MATCHES_KEY = 'nhl_hockey_matches_list';
 const LOCAL_STORAGE_ACTIVE_ID_KEY = 'nhl_hockey_active_match_id';
+const LOCAL_STORAGE_CUSTOM_TEAMS_KEY = 'nhl_hockey_custom_teams';
 const BROADCAST_CHANNEL_NAME = 'nhl_hockey_sync_channel';
 
 // Web BroadcastChannel for instant local multi-tab sync
@@ -238,30 +239,181 @@ export async function updateMatchState(newState) {
   }
 }
 
+// Read all remembered custom teams created by admin
+export function getCustomTeams() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const saved = localStorage.getItem(LOCAL_STORAGE_CUSTOM_TEAMS_KEY);
+    let list = saved ? JSON.parse(saved) : [];
+    if (!Array.isArray(list)) list = [];
+
+    // Also extract any custom teams already present in matches so none are forgotten
+    const matches = getInitialMatches();
+    let hasNewFromMatches = false;
+
+    matches.forEach(m => {
+      [m.home, m.away].forEach(t => {
+        if (!t) return;
+        const isCustom = t.id === 'custom' || t.id?.startsWith('custom-') || (!NHL_TEAMS[t.id] && t.name);
+        if (isCustom && t.name) {
+          const exists = list.some(item => item.id === t.id || item.name.toLowerCase() === t.name.toLowerCase());
+          if (!exists) {
+            const teamId = t.id && t.id !== 'custom' ? t.id : `custom-${t.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+            list.push({
+              id: teamId,
+              name: t.name,
+              stadium: m.venue || 'Arena Stadium',
+              crestSvg: t.crestSvg || generateTeamCrestSvg(t.name),
+              lineup: t.lineup || suggestTeamLineup(t.name),
+              createdAt: Date.now()
+            });
+            hasNewFromMatches = true;
+          }
+        }
+      });
+    });
+
+    if (hasNewFromMatches) {
+      localStorage.setItem(LOCAL_STORAGE_CUSTOM_TEAMS_KEY, JSON.stringify(list));
+    }
+
+    return list;
+  } catch (e) {
+    console.warn('Error reading custom teams:', e);
+    return [];
+  }
+}
+
+// Save or update an admin-created custom team and its roster
+export function saveCustomTeam(teamData) {
+  if (!teamData || !teamData.name) return null;
+  const list = getCustomTeams();
+  const cleanName = teamData.name.trim();
+  const slug = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  const teamId = (teamData.id && teamData.id !== 'custom') ? teamData.id : `custom-${slug || Date.now()}`;
+
+  const crestSvg = teamData.crestSvg || generateTeamCrestSvg(cleanName, teamData.primaryColor);
+  const lineup = (teamData.lineup && Array.isArray(teamData.lineup) && teamData.lineup.length > 0) 
+    ? teamData.lineup 
+    : suggestTeamLineup(cleanName);
+
+  const newTeam = {
+    id: teamId,
+    name: cleanName,
+    stadium: teamData.stadium || teamData.venue || 'Arena Stadium',
+    primaryColor: teamData.primaryColor || '#1e40af',
+    crestSvg,
+    lineup,
+    isCustom: true,
+    updatedAt: Date.now()
+  };
+
+  const existingIdx = list.findIndex(t => t.id === teamId || t.name.toLowerCase() === cleanName.toLowerCase());
+  if (existingIdx >= 0) {
+    list[existingIdx] = { ...list[existingIdx], ...newTeam };
+  } else {
+    list.unshift(newTeam);
+  }
+
+  try {
+    localStorage.setItem(LOCAL_STORAGE_CUSTOM_TEAMS_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.warn('Failed to save custom team to localStorage:', e);
+  }
+
+  if (channel) {
+    channel.postMessage({
+      type: 'CUSTOM_TEAMS_UPDATED',
+      customTeams: list
+    });
+  }
+
+  return newTeam;
+}
+
+// Delete an admin-created custom team
+export function deleteCustomTeam(teamId) {
+  if (!teamId) return;
+  const list = getCustomTeams().filter(t => t.id !== teamId);
+  try {
+    localStorage.setItem(LOCAL_STORAGE_CUSTOM_TEAMS_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.warn('Failed to delete custom team:', e);
+  }
+
+  if (channel) {
+    channel.postMessage({
+      type: 'CUSTOM_TEAMS_UPDATED',
+      customTeams: list
+    });
+  }
+}
+
 // ADD MATCH (from Remote Control)
 export async function addMatch(matchData) {
   const now = Date.now();
   const newId = matchData.id || `match-${now}-${Math.floor(Math.random() * 1000)}`;
 
+  // Auto-remember admin custom teams if created/customized
+  let homeTeamId = matchData.home?.id || 'custom-home';
+  let homeCrestSvg = matchData.home?.crestSvg || null;
+  let homeLineup = matchData.home?.lineup || null;
+
+  const isHomeCustom = homeTeamId === 'custom' || homeTeamId.startsWith('custom-') || !NHL_TEAMS[homeTeamId];
+  if (isHomeCustom && matchData.home?.name) {
+    const saved = saveCustomTeam({
+      id: homeTeamId !== 'custom' ? homeTeamId : null,
+      name: matchData.home.name,
+      stadium: matchData.venue,
+      crestSvg: matchData.home.crestSvg,
+      lineup: matchData.home.lineup
+    });
+    if (saved) {
+      homeTeamId = saved.id;
+      homeCrestSvg = saved.crestSvg;
+      homeLineup = saved.lineup;
+    }
+  }
+
+  let awayTeamId = matchData.away?.id || 'custom-away';
+  let awayCrestSvg = matchData.away?.crestSvg || null;
+  let awayLineup = matchData.away?.lineup || null;
+
+  const isAwayCustom = awayTeamId === 'custom' || awayTeamId.startsWith('custom-') || !NHL_TEAMS[awayTeamId];
+  if (isAwayCustom && matchData.away?.name) {
+    const saved = saveCustomTeam({
+      id: awayTeamId !== 'custom' ? awayTeamId : null,
+      name: matchData.away.name,
+      stadium: matchData.venue,
+      crestSvg: matchData.away.crestSvg,
+      lineup: matchData.away.lineup
+    });
+    if (saved) {
+      awayTeamId = saved.id;
+      awayCrestSvg = saved.crestSvg;
+      awayLineup = saved.lineup;
+    }
+  }
+
   const newMatch = {
     id: newId,
     home: {
-      id: matchData.home?.id || 'custom-home',
+      id: homeTeamId,
       name: matchData.home?.name || 'Home Team',
       score: matchData.home?.score !== undefined ? parseInt(matchData.home.score, 10) : 0,
       shots: matchData.home?.shots !== undefined ? parseInt(matchData.home.shots, 10) : 0,
-      crestSvg: matchData.home?.crestSvg || null,
-      lineup: matchData.home?.lineup || null
+      crestSvg: homeCrestSvg || NHL_TEAMS[homeTeamId]?.crestSvg || generateTeamCrestSvg(matchData.home?.name),
+      lineup: homeLineup
     },
     away: {
-      id: matchData.away?.id || 'custom-away',
+      id: awayTeamId,
       name: matchData.away?.name || 'Away Team',
       score: matchData.away?.score !== undefined ? parseInt(matchData.away.score, 10) : 0,
       shots: matchData.away?.shots !== undefined ? parseInt(matchData.away.shots, 10) : 0,
-      crestSvg: matchData.away?.crestSvg || null,
-      lineup: matchData.away?.lineup || null
+      crestSvg: awayCrestSvg || NHL_TEAMS[awayTeamId]?.crestSvg || generateTeamCrestSvg(matchData.away?.name),
+      lineup: awayLineup
     },
-    lineupsDeclared: matchData.lineupsDeclared !== undefined ? matchData.lineupsDeclared : Boolean(matchData.home?.lineup?.length || matchData.away?.lineup?.length),
+    lineupsDeclared: matchData.lineupsDeclared !== undefined ? matchData.lineupsDeclared : Boolean(homeLineup?.length || awayLineup?.length),
     period: matchData.period || '1',
     periodScores: matchData.periodScores || {
       p1: { home: 0, away: 0 },
