@@ -433,6 +433,51 @@ export async function adjustScore(currentState, team, delta) {
   await updateMatchState(updatedState);
 }
 
+// Shots on Goal (SOG) adjustment
+export async function adjustShots(currentState, team, delta) {
+  const currentShots = currentState[team]?.shots !== undefined ? currentState[team].shots : (currentState[team]?.score ? currentState[team].score * 6 + 10 : 25);
+  const newShots = Math.max(0, currentShots + delta);
+
+  const updatedState = {
+    ...currentState,
+    [team]: {
+      ...currentState[team],
+      shots: newShots
+    }
+  };
+
+  await updateMatchState(updatedState);
+}
+
+// Power Play toggle (team: 'home', 'away', or null)
+export async function setPowerPlay(currentState, team) {
+  const currentPP = currentState.powerPlay;
+  const newPP = currentPP === team ? null : team;
+
+  const updatedState = {
+    ...currentState,
+    powerPlay: newPP
+  };
+
+  await updateMatchState(updatedState);
+}
+
+// Add a live match incident (goal, penalty, etc.) to the match timeline
+export async function addMatchIncident(currentState, incident) {
+  const currentEvents = currentState.events || [];
+  const newEvent = {
+    id: Date.now(),
+    ...incident
+  };
+
+  const updatedState = {
+    ...currentState,
+    events: [newEvent, ...currentEvents]
+  };
+
+  await updateMatchState(updatedState);
+}
+
 // Clock controls: Start, Pause, Reset, Adjust
 export async function startClock(currentState) {
   const updatedState = {

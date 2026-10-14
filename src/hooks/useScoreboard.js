@@ -18,7 +18,10 @@ import {
   updateSchedule,
   addMatch as serviceAddMatch,
   deleteMatch as serviceDeleteMatch,
-  selectActiveMatch
+  selectActiveMatch,
+  adjustShots,
+  setPowerPlay,
+  addMatchIncident
 } from '../services/scoreboardService';
 import { arenaAudio } from '../components/GoalHorn';
 import { isFirebaseConfigured } from '../firebase/config';
@@ -92,6 +95,16 @@ export function useScoreboard() {
     decrementHomeScore: () => adjustScore(matchState, 'home', -1),
     incrementAwayScore: () => adjustScore(matchState, 'away', 1),
     decrementAwayScore: () => adjustScore(matchState, 'away', -1),
+    // Shots on Goal (SOG)
+    incrementHomeShots: () => adjustShots(matchState, 'home', 1),
+    decrementHomeShots: () => adjustShots(matchState, 'home', -1),
+    incrementAwayShots: () => adjustShots(matchState, 'away', 1),
+    decrementAwayShots: () => adjustShots(matchState, 'away', -1),
+    // Power Play & Incidents
+    setPowerPlay: (team) => setPowerPlay(matchState, team),
+    addIncident: (incident) => addMatchIncident(matchState, incident),
+    playPeriodBuzzer: () => arenaAudio.playPeriodBuzzer(),
+    // Game Clock
     startClock: () => startClock(matchState),
     pauseClock: (currentRemaining) => pauseClock(matchState, currentRemaining),
     resetClock: (seconds) => resetClock(matchState, seconds),
