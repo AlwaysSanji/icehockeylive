@@ -270,14 +270,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4 text-gray-400">
-            <button
-              onClick={() => setIsFirebaseModalOpen(true)}
-              className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Firebase Firestore Cloud Real-Time Sync"
-            >
-              <span>Firebase Cloud: {activeConfig?.projectId || 'icehockeylive-01'}</span>
-            </button>
-            <span className="text-gray-300">•</span>
             {isLoggedIn ? (
               <span className="text-gray-600 font-medium">
                 Signed in as <strong className="text-gray-800">{currentUser.name}</strong>
