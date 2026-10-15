@@ -1298,10 +1298,6 @@ export function RemoteView({
         liveCount={liveMatchesCount}
         upcomingCount={upcomingMatchesCount}
         finishedCount={finishedMatchesCount}
-        currentView="remote"
-        onViewChange={(view) => {
-          if (view === 'list' && onBackToScoreboard) onBackToScoreboard();
-        }}
         canManageMatches={true}
         onOpenAddMatch={() => setIsAddModalOpen(true)}
         onOpenDeleteMatch={() => {
@@ -1309,8 +1305,6 @@ export function RemoteView({
           setIsDeleteModalOpen(true);
         }}
         onOpenSearch={onOpenSearch}
-        currentUser={currentUser}
-        onLogout={onLogout}
       />
 
       {/* 2. LEAGUE MANAGEMENT VIEW (Standings, Teams & Players) */}

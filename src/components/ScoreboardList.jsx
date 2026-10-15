@@ -77,15 +77,10 @@ export function ScoreboardList({
         liveCount={liveMatches.length}
         upcomingCount={upcomingMatches.length}
         finishedCount={finishedMatches.length}
-        currentView={currentView}
-        onViewChange={onViewChange}
         canManageMatches={canManageMatches}
         onOpenAddMatch={onOpenAddMatch}
         onOpenDeleteMatch={onOpenDeleteMatch}
         onOpenSearch={onOpenSearch}
-        currentUser={currentUser}
-        onLogout={onLogout}
-        onOpenLogin={onOpenLogin}
       />
 
       {/* 2. LEAGUE VIEW (League Hub: Standings, Teams, Players) */}
