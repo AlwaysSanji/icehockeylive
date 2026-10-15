@@ -6,12 +6,19 @@ import {
   Plus, 
   Minus, 
   Clock,
-  ShieldAlert
+  ShieldAlert,
+  Trophy,
+  Calendar,
+  CheckCircle2,
+  Trash2,
+  Radio,
+  Sparkles
 } from 'lucide-react';
 import { useGameClock } from '../hooks/useGameClock';
 import { NHL_TEAMS, getTeamLineup, suggestTeamLineup, generateTeamCrestSvg } from '../constants/hockeyData';
 import { getCustomTeams, saveCustomTeam, deleteCustomTeam } from '../services/scoreboardService';
 import { AdminPanel } from './AdminPanel';
+import { LeagueManager } from './LeagueManager';
 
 export function RemoteView({ 
   matchState, 
@@ -77,11 +84,69 @@ export function RemoteView({
   const homeShots = matchState?.home?.shots ?? (homeScore ? homeScore * 5 + 10 : 25);
   const awayShots = matchState?.away?.shots ?? (awayScore ? awayScore * 5 + 8 : 22);
 
+  // Categorize matches by status
+  const getMatchCategory = (m) => {
+    if (!m) return 'live';
+    const period = String(m.period || '').toUpperCase();
+    const status = String(m.status || '').toLowerCase();
+    const badge = String(m.statusBadge || '').toUpperCase();
+
+    if (period === 'FT' || status === 'finished' || status === 'ft' || badge === 'FT') {
+      return 'finished';
+    }
+    if (period === 'UPCOMING' || status === 'upcoming' || badge === 'SCHED' || (!m.period && m.dateTime)) {
+      return 'upcoming';
+    }
+    return 'live';
+  };
+
   // Active match tracking for clear admin orientation
   const activeMatchIndex = matches.findIndex(m => m.id === matchState?.id);
   const currentMatchNumber = activeMatchIndex >= 0 ? activeMatchIndex + 1 : 1;
   const totalMatches = Math.max(matches.length, 1);
   const isCompleted = matchState?.period === 'FT' || matchState?.status === 'Finished' || matchState?.status === 'FT';
+  const isUpcoming = getMatchCategory(matchState) === 'upcoming';
+
+  // Remote Control Master Navbar Tab ('league', 'live', 'upcoming', 'finished')
+  const [remoteNavTab, setRemoteNavTab] = useState(() => {
+    return getMatchCategory(matchState) || 'live';
+  });
+
+  const handleNavTabChange = (newTab) => {
+    setRemoteNavTab(newTab);
+    if (newTab !== 'league') {
+      const catMatches = matches.filter(m => getMatchCategory(m) === newTab);
+      if (catMatches.length > 0 && getMatchCategory(matchState) !== newTab) {
+        if (onSelectMatch) onSelectMatch(catMatches[0].id);
+      }
+    }
+  };
+
+  const handleStartUpcomingMatch = async (matchId) => {
+    const targetId = matchId || matchState?.id;
+    if (targetId && onSelectMatch && targetId !== matchState?.id) {
+      await onSelectMatch(targetId);
+    }
+    if (scoreboard?.setPeriod) {
+      await scoreboard.setPeriod('1');
+    }
+    if (scoreboard?.resetClock) {
+      await scoreboard.resetClock(1200);
+    }
+    if (scoreboard?.startClock) {
+      scoreboard.startClock();
+    }
+    setRemoteNavTab('live');
+  };
+
+  const liveMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'live').length, [matches]);
+  const upcomingMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'upcoming').length, [matches]);
+  const finishedMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'finished').length, [matches]);
+
+  const currentCategoryMatches = useMemo(() => {
+    if (remoteNavTab === 'league') return [];
+    return matches.filter(m => getMatchCategory(m) === remoteNavTab);
+  }, [matches, remoteNavTab]);
 
   // Lineups for incident logger
   const homeLineup = useMemo(() => getTeamLineup(homeTeamId, homeName), [homeTeamId, homeName]);
@@ -123,26 +188,6 @@ export function RemoteView({
   // Switch Match Modal State & Active Match Filter ('all', 'live', 'upcoming', 'finished')
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
   const [matchFilter, setMatchFilter] = useState('all');
-
-  // Categorize matches by status
-  const getMatchCategory = (m) => {
-    if (!m) return 'live';
-    const period = String(m.period || '').toUpperCase();
-    const status = String(m.status || '').toLowerCase();
-    const badge = String(m.statusBadge || '').toUpperCase();
-
-    if (period === 'FT' || status === 'finished' || status === 'ft' || badge === 'FT') {
-      return 'finished';
-    }
-    if (period === 'UPCOMING' || status === 'upcoming' || badge === 'SCHED' || (!m.period && m.dateTime)) {
-      return 'upcoming';
-    }
-    return 'live';
-  };
-
-  const liveMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'live').length, [matches]);
-  const upcomingMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'upcoming').length, [matches]);
-  const finishedMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'finished').length, [matches]);
 
   const filteredMatchesList = useMemo(() => {
     if (matchFilter === 'live') return matches.filter(m => getMatchCategory(m) === 'live');
@@ -550,216 +595,295 @@ export function RemoteView({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Persistent Sticky Bar when scrolling - Always shows which match is being edited */}
-      <div className="sticky top-2 z-40 bg-gray-950/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-xl border border-gray-800 mb-6 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[11px] shrink-0 text-blue-400">
-            <span className={`w-2 h-2 rounded-full ${isCompleted ? 'bg-emerald-400' : 'bg-blue-500 animate-pulse'}`} />
-            {isCompleted ? `Completed Match ${currentMatchNumber} of ${totalMatches}:` : `Editing Match ${currentMatchNumber} of ${totalMatches}:`}
-          </span>
-          <span className="font-extrabold text-white text-sm truncate">
-            {homeName} <span className="text-blue-400 font-mono">({homeScore})</span> vs <span className="text-amber-400 font-mono">({awayScore})</span> {awayName}
-          </span>
-          <span className="text-gray-500 hidden md:inline">•</span>
-          <span className="text-gray-300 font-medium text-[11px] hidden md:inline">
-            {isCompleted ? (
-              <span className="text-emerald-400 font-bold">Full Time (FT) • Final Score</span>
-            ) : (
-              `Period ${matchState?.period || '1'} • ${formattedTime}`
-            )}
-          </span>
-          <span className="text-gray-500 hidden lg:inline">•</span>
-          <span className="text-gray-400 text-[11px] hidden lg:inline truncate max-w-[150px]">
-            {matchState?.venue || 'Arena'}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {matches.length > 1 && (
-            <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-700/80 rounded-xl px-2.5 py-1">
-              <span className="text-[10px] uppercase font-bold text-gray-400 shrink-0">Switch:</span>
-              <select
-                value={matchState?.id || ''}
-                onChange={(e) => onSelectMatch && onSelectMatch(e.target.value)}
-                className="bg-transparent text-xs font-bold text-gray-100 outline-none cursor-pointer max-w-[160px] sm:max-w-[200px] truncate"
-                title="Select active match to control"
-              >
-                {liveMatchesCount > 0 && (
-                  <optgroup label={`Live Matches (${liveMatchesCount})`} className="bg-gray-900 text-red-400 font-bold">
-                    {matches.filter(m => getMatchCategory(m) === 'live').map((m) => {
-                      const idx = matches.findIndex(orig => orig.id === m.id);
-                      return (
-                        <option key={m.id} value={m.id} className="bg-gray-900 text-white">
-                          [LIVE] Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} ({m.home?.score ?? 0}-{m.away?.score ?? 0})
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                )}
-                {upcomingMatchesCount > 0 && (
-                  <optgroup label={`Upcoming Matches (${upcomingMatchesCount})`} className="bg-gray-900 text-amber-400 font-bold">
-                    {matches.filter(m => getMatchCategory(m) === 'upcoming').map((m) => {
-                      const idx = matches.findIndex(orig => orig.id === m.id);
-                      return (
-                        <option key={m.id} value={m.id} className="bg-gray-900 text-white">
-                          [UPCOMING] Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                )}
-                {finishedMatchesCount > 0 && (
-                  <optgroup label={`Finished Matches (${finishedMatchesCount})`} className="bg-gray-900 text-emerald-400 font-bold">
-                    {matches.filter(m => getMatchCategory(m) === 'finished').map((m) => {
-                      const idx = matches.findIndex(orig => orig.id === m.id);
-                      return (
-                        <option key={m.id} value={m.id} className="bg-gray-900 text-white">
-                          [FT] Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} ({m.home?.score ?? 0}-{m.away?.score ?? 0})
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                )}
-              </select>
-            </div>
-          )}
+      {/* 1. MASTER TOP NAVBAR: League, Live, Upcoming, Finished & Match Action Buttons */}
+      <nav className="bg-white rounded-3xl p-3 sm:p-4 border border-gray-200/80 shadow-2xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Category Tabs: League, Live, Upcoming, Finished */}
+        <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-2xl overflow-x-auto">
           <button
             type="button"
-            onClick={() => setIsSwitchModalOpen(true)}
-            className="px-2.5 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-750 text-gray-200 text-xs font-bold border border-gray-700 transition-colors cursor-pointer shrink-0"
+            onClick={() => handleNavTabChange('league')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              remoteNavTab === 'league'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-gray-700 hover:text-gray-950 hover:bg-white/60'
+            }`}
           >
-            <span>Switch Match</span>
+            <Trophy className="w-3.5 h-3.5" />
+            <span>League</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleNavTabChange('live')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              remoteNavTab === 'live'
+                ? 'bg-red-600 text-white shadow-xs'
+                : 'text-gray-700 hover:text-red-700 hover:bg-white/60'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${remoteNavTab === 'live' ? 'bg-white' : 'bg-red-500'} animate-pulse`} />
+            <span>Live</span>
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
+              remoteNavTab === 'live' ? 'bg-white/20 text-white font-black' : 'bg-gray-200 text-gray-700 font-bold'
+            }`}>
+              {liveMatchesCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleNavTabChange('upcoming')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              remoteNavTab === 'upcoming'
+                ? 'bg-amber-500 text-white shadow-xs'
+                : 'text-gray-700 hover:text-amber-700 hover:bg-white/60'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Upcoming</span>
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
+              remoteNavTab === 'upcoming' ? 'bg-white/20 text-white font-black' : 'bg-gray-200 text-gray-700 font-bold'
+            }`}>
+              {upcomingMatchesCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleNavTabChange('finished')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              remoteNavTab === 'finished'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-gray-700 hover:text-emerald-700 hover:bg-white/60'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Finished</span>
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
+              remoteNavTab === 'finished' ? 'bg-white/20 text-white font-black' : 'bg-gray-200 text-gray-700 font-bold'
+            }`}>
+              {finishedMatchesCount}
+            </span>
           </button>
         </div>
-      </div>
 
-      {/* Top Navigation Bar with Clear Match Context */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-white p-4 rounded-3xl border border-gray-200/80 shadow-2xs">
-        <div className="flex items-center gap-3">
+        {/* Right Top Action Buttons: Add Match, Remove Match, Scoreboard, Logout */}
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          {/* Add Match Button */}
           <button
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-98"
+            title="Create new match fixture"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Match</span>
+          </button>
+
+          {/* Remove Match Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedMatchToDelete(matchState?.id || (matches[0] && matches[0].id));
+              setIsDeleteModalOpen(true);
+            }}
+            disabled={matches.length <= 1}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-700 border border-gray-200 hover:border-red-200 text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            title="Delete a match fixture"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Remove Match</span>
+          </button>
+
+          {/* Back to Scoreboard */}
+          <button
+            type="button"
             onClick={onBackToScoreboard}
-            className="text-xs font-bold text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3.5 py-2 rounded-xl transition-colors cursor-pointer shrink-0"
+            className="px-3.5 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-gray-900 border border-gray-200 text-xs font-semibold transition-colors cursor-pointer"
+            title="Return to public scoreboard"
           >
-            <span>Back to Scoreboard</span>
-          </button>
-          <div className="h-6 w-px bg-gray-200 hidden sm:block" />
-          <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
-              Live Operator Console • Match {currentMatchNumber} of {totalMatches}
-            </div>
-            <div className="text-sm text-gray-900 font-extrabold truncate">
-              {homeName} vs {awayName}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Status Filter for Matches */}
-          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
-            <span className="text-[11px] font-bold text-gray-500 whitespace-nowrap">Status:</span>
-            <select
-              value={matchFilter}
-              onChange={(e) => setMatchFilter(e.target.value)}
-              className="bg-transparent text-xs font-bold text-gray-900 outline-none cursor-pointer"
-              title="Filter matches by status"
-            >
-              <option value="all">All Matches ({matches.length})</option>
-              <option value="live">Live Matches ({liveMatchesCount})</option>
-              <option value="upcoming">Upcoming Matches ({upcomingMatchesCount})</option>
-              <option value="finished">Finished Matches ({finishedMatchesCount})</option>
-            </select>
-          </div>
-
-          {/* Active Match Dropdown */}
-          {matches.length > 1 && (
-            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
-              <span className="text-[11px] font-bold text-gray-500 whitespace-nowrap">Active Match:</span>
-              <select
-                value={matchState?.id || ''}
-                onChange={(e) => onSelectMatch && onSelectMatch(e.target.value)}
-                className="bg-transparent text-xs font-bold text-gray-900 outline-none cursor-pointer max-w-[180px] sm:max-w-[220px] truncate"
-                title="Select active match to control"
-              >
-                {matchFilter === 'all' ? (
-                  <>
-                    {liveMatchesCount > 0 && (
-                      <optgroup label={`Live Matches (${liveMatchesCount})`}>
-                        {matches.filter(m => getMatchCategory(m) === 'live').map((m) => {
-                          const idx = matches.findIndex(orig => orig.id === m.id);
-                          return (
-                            <option key={m.id} value={m.id}>
-                              Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} ({m.home?.score ?? 0} - {m.away?.score ?? 0})
-                            </option>
-                          );
-                        })}
-                      </optgroup>
-                    )}
-                    {upcomingMatchesCount > 0 && (
-                      <optgroup label={`Upcoming Matches (${upcomingMatchesCount})`}>
-                        {matches.filter(m => getMatchCategory(m) === 'upcoming').map((m) => {
-                          const idx = matches.findIndex(orig => orig.id === m.id);
-                          return (
-                            <option key={m.id} value={m.id}>
-                              Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'}
-                            </option>
-                          );
-                        })}
-                      </optgroup>
-                    )}
-                    {finishedMatchesCount > 0 && (
-                      <optgroup label={`Finished Matches (${finishedMatchesCount})`}>
-                        {matches.filter(m => getMatchCategory(m) === 'finished').map((m) => {
-                          const idx = matches.findIndex(orig => orig.id === m.id);
-                          return (
-                            <option key={m.id} value={m.id}>
-                              Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} ({m.home?.score ?? 0} - {m.away?.score ?? 0}) [FT]
-                            </option>
-                          );
-                        })}
-                      </optgroup>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {!filteredMatchesList.some(m => m.id === matchState?.id) && matchState && (
-                      <option value={matchState.id} disabled>
-                        [Current] {homeName} vs {awayName}
-                      </option>
-                    )}
-                    {filteredMatchesList.map((m) => {
-                      const idx = matches.findIndex(orig => orig.id === m.id);
-                      const cat = getMatchCategory(m);
-                      return (
-                        <option key={m.id} value={m.id}>
-                          Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} {cat === 'upcoming' ? '' : `(${m.home?.score ?? 0} - {m.away?.score ?? 0})`}
-                        </option>
-                      );
-                    })}
-                  </>
-                )}
-              </select>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setIsSwitchModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold border border-gray-200 transition-colors cursor-pointer"
-            title="Browse and switch matches"
-          >
-            <span>Switch Match...</span>
+            <span>Scoreboard</span>
           </button>
 
           {onLogout && (
             <button
+              type="button"
               onClick={onLogout}
-              className="px-3.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-gray-200 hover:border-red-200 cursor-pointer"
+              className="px-3 py-2.5 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 border border-gray-200 hover:border-red-200 transition-colors cursor-pointer"
+              title="Sign out"
             >
-              <span>Log Out</span>
+              Log Out
             </button>
           )}
         </div>
-      </div>
+      </nav>
+
+      {/* 2. LEAGUE MANAGEMENT VIEW (Teams & Players Fields) */}
+      {remoteNavTab === 'league' ? (
+        <LeagueManager />
+      ) : (
+        <>
+          {/* Category Matches Quick Selector Strip */}
+          {currentCategoryMatches.length > 0 ? (
+            <div className="bg-white rounded-2xl p-3 border border-gray-200/80 shadow-2xs mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-x-auto py-0.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 shrink-0">
+                  {remoteNavTab === 'live' ? 'Live Matches:' : (remoteNavTab === 'upcoming' ? 'Upcoming Fixtures:' : 'Finished Matches:')}
+                </span>
+                {currentCategoryMatches.map((m) => {
+                  const isSelected = m.id === matchState?.id;
+                  const originalIdx = matches.findIndex(orig => orig.id === m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => onSelectMatch && onSelectMatch(m.id)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 border ${
+                        isSelected
+                          ? (remoteNavTab === 'live' 
+                              ? 'bg-red-50 text-red-700 border-red-300 shadow-2xs ring-1 ring-red-400/30'
+                              : remoteNavTab === 'upcoming'
+                              ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-2xs ring-1 ring-amber-400/30'
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs ring-1 ring-emerald-400/30')
+                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="font-mono text-[10px] text-gray-400">#{originalIdx + 1}</span>
+                      <span className="truncate max-w-[140px] sm:max-w-[180px]">
+                        {m.home?.name || 'Home'} vs {m.away?.name || 'Away'}
+                      </span>
+                      {remoteNavTab !== 'upcoming' && (
+                        <span className="font-mono font-black text-[11px] ml-0.5">
+                          ({m.home?.score ?? 0}-{m.away?.score ?? 0})
+                        </span>
+                      )}
+                      {isSelected && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ New Match</span>
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl p-8 sm:p-12 border border-dashed border-gray-300 text-center shadow-xs mb-6">
+              <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center mb-4 ${
+                remoteNavTab === 'live' ? 'bg-red-50 text-red-600 border border-red-100' :
+                remoteNavTab === 'upcoming' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                'bg-emerald-50 text-emerald-600 border border-emerald-100'
+              }`}>
+                {remoteNavTab === 'live' && <Radio className="w-7 h-7" />}
+                {remoteNavTab === 'upcoming' && <Calendar className="w-7 h-7" />}
+                {remoteNavTab === 'finished' && <CheckCircle2 className="w-7 h-7" />}
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-1">
+                {remoteNavTab === 'live' && 'No Live Matches In Progress'}
+                {remoteNavTab === 'upcoming' && 'No Upcoming Matches Scheduled'}
+                {remoteNavTab === 'finished' && 'No Finished Matches Recorded'}
+              </h3>
+              <p className="text-xs text-gray-500 max-w-md mx-auto mb-6">
+                {remoteNavTab === 'live' && 'There are currently no active fixtures in play. You can start one of your upcoming matches or create a new live match.'}
+                {remoteNavTab === 'upcoming' && 'There are no future fixtures currently scheduled in the league timetable. Create a new upcoming match fixture to prepare lineups.'}
+                {remoteNavTab === 'finished' && 'Matches that conclude with Full Time (FT) status will be cataloged here for post-game timeline and score audits.'}
+              </p>
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                {remoteNavTab === 'live' && upcomingMatchesCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => handleNavTabChange('upcoming')}
+                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  >
+                    View Upcoming Matches ({upcomingMatchesCount})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add New Match</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {currentCategoryMatches.length > 0 && (
+            <>
+              {/* Persistent Sticky Bar when scrolling - Always shows which match is being edited */}
+              <div className="sticky top-2 z-40 bg-gray-950/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-xl border border-gray-800 mb-6 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[11px] shrink-0 text-blue-400">
+                    <span className={`w-2 h-2 rounded-full ${isCompleted ? 'bg-emerald-400' : isUpcoming ? 'bg-amber-400' : 'bg-blue-500 animate-pulse'}`} />
+                    {isCompleted ? `Completed Match ${currentMatchNumber} of ${totalMatches}:` : isUpcoming ? `Upcoming Match ${currentMatchNumber} of ${totalMatches}:` : `Editing Match ${currentMatchNumber} of ${totalMatches}:`}
+                  </span>
+                  <span className="font-extrabold text-white text-sm truncate">
+                    {homeName} {!isUpcoming && <><span className="text-blue-400 font-mono">({homeScore})</span> vs <span className="text-amber-400 font-mono">({awayScore})</span></>} {isUpcoming && <span className="text-gray-400 font-normal">vs</span>} {awayName}
+                  </span>
+                  <span className="text-gray-500 hidden md:inline">•</span>
+                  <span className="text-gray-300 font-medium text-[11px] hidden md:inline">
+                    {isCompleted ? (
+                      <span className="text-emerald-400 font-bold">Full Time (FT) • Final Score</span>
+                    ) : isUpcoming ? (
+                      <span className="text-amber-400 font-bold">Scheduled • {matchState?.dateTime || matchState?.date || 'Upcoming'}</span>
+                    ) : (
+                      `Period ${matchState?.period || '1'} • ${formattedTime}`
+                    )}
+                  </span>
+                  <span className="text-gray-500 hidden lg:inline">•</span>
+                  <span className="text-gray-400 text-[11px] hidden lg:inline truncate max-w-[150px]">
+                    {matchState?.venue || 'Arena'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {currentCategoryMatches.length > 1 && (
+                    <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-700/80 rounded-xl px-2.5 py-1">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 shrink-0">Switch:</span>
+                      <select
+                        value={matchState?.id || ''}
+                        onChange={(e) => onSelectMatch && onSelectMatch(e.target.value)}
+                        className="bg-transparent text-xs font-bold text-gray-100 outline-none cursor-pointer max-w-[160px] sm:max-w-[200px] truncate"
+                        title="Select active match to control"
+                      >
+                        {currentCategoryMatches.map((m) => {
+                          const idx = matches.findIndex(orig => orig.id === m.id);
+                          return (
+                            <option key={m.id} value={m.id} className="bg-gray-900 text-white">
+                              Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} {remoteNavTab === 'upcoming' ? '' : `(${m.home?.score ?? 0}-${m.away?.score ?? 0})`}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
+                  {isUpcoming && (
+                    <button
+                      type="button"
+                      onClick={() => handleStartUpcomingMatch()}
+                      className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+                    >
+                      <Play className="w-3 h-3 fill-current" />
+                      <span>Start Match</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsSwitchModalOpen(true)}
+                    className="px-2.5 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-750 text-gray-200 text-xs font-bold border border-gray-700 transition-colors cursor-pointer shrink-0"
+                  >
+                    <span>Browse All</span>
+                  </button>
+                </div>
+              </div>
 
       {/* 1. JUMBOTRON MASTER MATCH BANNER */}
       <div className="bg-gradient-to-br from-gray-950 via-slate-900 to-gray-900 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-slate-800 mb-6 relative overflow-hidden">
@@ -771,19 +895,35 @@ export function RemoteView({
         <div className="pb-4 mb-4 border-b border-gray-800/80">
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs mb-3">
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 font-extrabold uppercase tracking-wider text-[11px] border border-blue-500/30">
-                {isCompleted ? `COMPLETED MATCH ${currentMatchNumber} OF ${totalMatches}` : `ACTIVE MATCH ${currentMatchNumber} OF ${totalMatches}`}
+              <span className={`px-2 py-0.5 rounded-md font-extrabold uppercase tracking-wider text-[11px] border ${
+                isCompleted 
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                  : isUpcoming
+                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                  : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+              }`}>
+                {isCompleted ? `COMPLETED MATCH ${currentMatchNumber} OF ${totalMatches}` : isUpcoming ? `UPCOMING FIXTURE ${currentMatchNumber} OF ${totalMatches}` : `ACTIVE MATCH ${currentMatchNumber} OF ${totalMatches}`}
               </span>
               <span className="text-gray-600">•</span>
               <span className="font-mono font-bold tracking-wider uppercase text-gray-300">
-                {isCompleted ? 'FULL TIME (FINISHED)' : (isRunning ? 'BROADCAST CLOCK RUNNING' : 'ARENA CLOCK PAUSED')}
+                {isCompleted ? 'FULL TIME (FINISHED)' : isUpcoming ? 'SCHEDULED • PUCK DROP PENDING' : (isRunning ? 'BROADCAST CLOCK RUNNING' : 'ARENA CLOCK PAUSED')}
               </span>
               <span className="text-gray-600">•</span>
-              <span className="text-gray-400 font-medium">{matchState?.venue || 'United Center'}</span>
+              <span className="text-gray-400 font-medium">{matchState?.venue || 'Arena'}</span>
             </div>
 
             {/* Action buttons: Switch Match, Add Match, Delete Match */}
             <div className="flex items-center gap-2">
+              {isUpcoming && (
+                <button
+                  type="button"
+                  onClick={() => handleStartUpcomingMatch()}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Start Match (P1)</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setIsSwitchModalOpen(true)}
@@ -822,9 +962,11 @@ export function RemoteView({
               <span className="text-gray-500 font-mono text-[11px]">(ID: {matchState?.id || 'active'})</span>
             </div>
             <div className="text-gray-400 text-[11px] flex items-center gap-2">
-              <span>{matchState?.date || 'Scheduled'}</span>
+              <span>{matchState?.date || matchState?.dateTime || 'Scheduled'}</span>
               <span>•</span>
-              <span className="text-blue-400 font-bold">{isCompleted ? 'Finished (Full Time)' : (matchState?.status || `Period ${matchState?.period || '1'}`)}</span>
+              <span className={isCompleted ? 'text-emerald-400 font-bold' : isUpcoming ? 'text-amber-400 font-bold' : 'text-blue-400 font-bold'}>
+                {isCompleted ? 'Finished (Full Time)' : isUpcoming ? 'Upcoming Fixture' : (matchState?.status || `Period ${matchState?.period || '1'}`)}
+              </span>
             </div>
           </div>
         </div>
@@ -939,8 +1081,36 @@ export function RemoteView({
         </div>
       ) : (
         <div className="space-y-6">
-          {/* 3. PRECISION GAME CLOCK CONTROLS (Removed for completed match) */}
-          {isCompleted ? (
+          {/* 3. PRECISION GAME CLOCK CONTROLS (Removed for completed & upcoming matches) */}
+          {isUpcoming ? (
+            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold text-sm shrink-0">
+                  <Calendar className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-gray-900 text-base">Upcoming Match Scheduled</h3>
+                    <span className="text-[11px] text-amber-700 font-extrabold uppercase px-2 py-0.5 bg-amber-100 rounded-md">
+                      {matchState?.dateTime || matchState?.date || 'Scheduled'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    This fixture is scheduled to be played at <strong className="text-gray-800">{matchState?.venue || 'Arena'}</strong>. When puck drops, start Period 1 to activate live scoring and broadcast clock.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleStartUpcomingMatch()}
+                className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-emerald-600/20 transition-all active:scale-98 cursor-pointer flex items-center gap-2 shrink-0"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>Drop Puck & Start Match (P1)</span>
+              </button>
+            </div>
+          ) : isCompleted ? (
             <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center font-bold text-sm shrink-0">
@@ -1629,6 +1799,10 @@ export function RemoteView({
           </div>
 
         </div>
+      )}
+            </>
+          )}
+        </>
       )}
 
       {/* --- MODAL 1: ADD MATCH MODAL --- */}

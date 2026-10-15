@@ -1,6 +1,6 @@
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../firebase/config';
-import { DEFAULT_MATCH_STATE, DEFAULT_MATCHES_LIST, NHL_TEAMS, generateTeamCrestSvg, suggestTeamLineup } from '../constants/hockeyData';
+import { DEFAULT_MATCH_STATE, DEFAULT_MATCHES_LIST, NHL_TEAMS, generateTeamCrestSvg, suggestTeamLineup, getTeamLineup } from '../constants/hockeyData';
 
 const COLLECTION_NAME = 'scoreboards';
 const DOC_ID = 'active_match';
@@ -363,6 +363,122 @@ export function deleteCustomTeam(teamId) {
       customTeams: list
     });
   }
+}
+
+// Read all League Teams (both Official NHL and Custom)
+export function getAllLeagueTeams() {
+  const custom = getCustomTeams();
+  const official = Object.values(NHL_TEAMS).map(t => {
+    const customOverride = custom.find(c => c.id === t.id || c.name.toLowerCase() === t.name.toLowerCase());
+    return {
+      id: t.id,
+      name: t.name,
+      shortCode: t.shortCode || t.name.slice(0, 3).toUpperCase(),
+      city: t.city || '',
+      stadium: t.stadium || 'Arena Stadium',
+      primaryColor: t.primaryColor || '#1e40af',
+      crestSvg: customOverride?.crestSvg || t.crestSvg,
+      lineup: customOverride?.lineup || getTeamLineup(t.id, t.name),
+      isCustom: false
+    };
+  });
+
+  const customOnly = custom.filter(c => !Object.values(NHL_TEAMS).some(o => o.id === c.id || o.name.toLowerCase() === c.name.toLowerCase())).map(c => ({
+    id: c.id,
+    name: c.name,
+    shortCode: c.shortCode || c.name.slice(0, 3).toUpperCase(),
+    city: c.city || '',
+    stadium: c.stadium || c.venue || 'Arena Stadium',
+    primaryColor: c.primaryColor || '#1e40af',
+    crestSvg: c.crestSvg || generateTeamCrestSvg(c.name),
+    lineup: c.lineup || suggestTeamLineup(c.name),
+    isCustom: true
+  }));
+
+  return [...official, ...customOnly];
+}
+
+// Read all League Players across all teams
+export function getAllLeaguePlayers() {
+  const teams = getAllLeagueTeams();
+  const allPlayers = [];
+  teams.forEach(team => {
+    const lineup = team.lineup || [];
+    lineup.forEach(p => {
+      allPlayers.push({
+        id: p.id || `${team.id}-${p.number}-${p.name}`,
+        number: p.number,
+        name: p.name,
+        pos: p.pos || 'F',
+        nationality: p.nationality || 'CAN',
+        captain: p.captain || '',
+        teamId: team.id,
+        teamName: team.name,
+        teamShortCode: team.shortCode,
+        teamCrest: team.crestSvg,
+        isCustom: Boolean(p.isCustom || team.isCustom)
+      });
+    });
+  });
+  return allPlayers;
+}
+
+// Add a player to any team (official or custom)
+export function addPlayerToTeam(teamId, playerData) {
+  if (!teamId || !playerData || !playerData.name) return null;
+  const allTeams = getAllLeagueTeams();
+  const targetTeam = allTeams.find(t => t.id === teamId || t.name.toLowerCase() === teamId.toLowerCase());
+  if (!targetTeam) return null;
+
+  const currentLineup = getTeamLineup(targetTeam.id, targetTeam.name) || [];
+  const newPlayer = {
+    id: `p-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    number: parseInt(playerData.number, 10) || (currentLineup.length + 1),
+    name: playerData.name.trim(),
+    pos: playerData.pos || 'F',
+    nationality: playerData.nationality ? playerData.nationality.trim().toUpperCase() : 'CAN',
+    captain: playerData.captain || '',
+    isCustom: true
+  };
+
+  const updatedLineup = [...currentLineup, newPlayer];
+
+  saveCustomTeam({
+    id: targetTeam.id,
+    name: targetTeam.name,
+    stadium: targetTeam.stadium,
+    primaryColor: targetTeam.primaryColor,
+    crestSvg: targetTeam.crestSvg,
+    lineup: updatedLineup,
+    isCustom: targetTeam.isCustom
+  });
+
+  return newPlayer;
+}
+
+// Remove a player from a team
+export function deletePlayerFromTeam(teamId, playerIdentifier) {
+  if (!teamId || !playerIdentifier) return;
+  const allTeams = getAllLeagueTeams();
+  const targetTeam = allTeams.find(t => t.id === teamId || t.name.toLowerCase() === teamId.toLowerCase());
+  if (!targetTeam) return;
+
+  const currentLineup = getTeamLineup(targetTeam.id, targetTeam.name) || [];
+  const updatedLineup = currentLineup.filter(p => 
+    p.id !== playerIdentifier && 
+    String(p.number) !== String(playerIdentifier) && 
+    p.name.toLowerCase() !== String(playerIdentifier).toLowerCase()
+  );
+
+  saveCustomTeam({
+    id: targetTeam.id,
+    name: targetTeam.name,
+    stadium: targetTeam.stadium,
+    primaryColor: targetTeam.primaryColor,
+    crestSvg: targetTeam.crestSvg,
+    lineup: updatedLineup,
+    isCustom: targetTeam.isCustom
+  });
 }
 
 // ADD MATCH (from Remote Control)
