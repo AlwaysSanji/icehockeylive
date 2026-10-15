@@ -9,7 +9,7 @@ import { TeamEditorModal } from './components/TeamEditorModal';
 import { FirebaseModal } from './components/FirebaseModal';
 import { isFirebaseConfigured, activeConfig } from './firebase/config';
 import { useScoreboard } from './hooks/useScoreboard';
-import { getCurrentUser, logoutUser, checkSession } from './services/authService';
+import { getCurrentUser, logoutUser, checkSession, canUserAccessRemote, isUserAdmin } from './services/authService';
 
 export default function App() {
   const scoreboard = useScoreboard();
@@ -18,6 +18,7 @@ export default function App() {
   // Authentication state (current logged-in user or null)
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser());
   const isLoggedIn = Boolean(currentUser);
+  const canAccessRemote = canUserAccessRemote(currentUser);
   const [legalModalTab, setLegalModalTab] = useState(null); // 'privacy', 'tos', or null
 
   // View routing: 'list', 'detail', 'remote', or 'login'
@@ -77,7 +78,11 @@ export default function App() {
   // Login / Register Success Handler
   const handleAuthSuccess = (user) => {
     setCurrentUser(user);
-    changeView('remote');
+    if (canUserAccessRemote(user)) {
+      changeView('remote');
+    } else {
+      changeView('list');
+    }
   };
 
   // Logout Handler
@@ -95,6 +100,7 @@ export default function App() {
           currentView={currentView}
           setView={changeView}
           currentUser={currentUser}
+          canAccessRemote={canAccessRemote}
           onLogout={handleLogout}
           onOpenLogin={() => changeView('login')}
         />
@@ -113,6 +119,7 @@ export default function App() {
             <MatchDetailView
               matchState={scoreboard.matches?.find(m => m.id === selectedMatchId) || matchState}
               isLoggedIn={isLoggedIn}
+              canAccessRemote={canAccessRemote}
               onBackToList={() => changeView('list')}
               onOpenRemote={() => {
                 const targetId = selectedMatchId || matchState.id;
@@ -138,6 +145,7 @@ export default function App() {
                 matches={scoreboard.matches}
                 scoreboard={scoreboard}
                 currentUser={currentUser}
+                canAccessRemote={canAccessRemote}
                 onSelectMatch={scoreboard.selectMatch}
                 onAddMatch={scoreboard.addMatch}
                 onDeleteMatch={scoreboard.deleteMatch}

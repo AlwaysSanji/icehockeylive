@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { getTeamLineup } from '../constants/hockeyData';
 
-export function MatchTimeline({ matchState, homeName, awayName, isRunning, formattedTime, isLoggedIn, onOpenRemote }) {
+export function MatchTimeline({ matchState, homeName, awayName, isRunning, formattedTime, isLoggedIn, canAccessRemote = false, onOpenRemote }) {
   const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'goals', 'penalties'
   const [hoveredEvent, setHoveredEvent] = useState(null);
 
@@ -203,7 +203,7 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
 
         <div className="flex flex-wrap items-center gap-3">
           {/* Admin shortcut if logged in */}
-          {isLoggedIn && onOpenRemote && (
+          {isLoggedIn && canAccessRemote && onOpenRemote && (
             <button
               type="button"
               onClick={onOpenRemote}
@@ -373,7 +373,7 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
             <p className="text-gray-400 max-w-md mx-auto mb-4">
               Official timeline events (goals, assists, and penalties) are recorded live by the arena administrator.
             </p>
-            {isLoggedIn && onOpenRemote && (
+            {isLoggedIn && canAccessRemote && onOpenRemote && (
               <button
                 type="button"
                 onClick={onOpenRemote}

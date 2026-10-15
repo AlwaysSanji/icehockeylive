@@ -8,18 +8,31 @@ const TOKEN_KEY = 'nhl_auth_token';
 // Default starter users for local fallback
 const DEFAULT_USERS = [
   {
-    id: 'user-1',
-    name: 'Game Operator',
-    username: 'user',
-    email: 'operator@nhl.com',
-    password: 'password'
-  },
-  {
     id: 'user-admin',
-    name: 'Scorekeeper',
+    name: 'Scorekeeper (Admin)',
     username: 'admin',
     email: 'admin@nhl.com',
-    password: 'password'
+    password: 'password',
+    role: 'admin',
+    canControlRemote: true,
+  },
+  {
+    id: 'user-operator',
+    name: 'Game Operator',
+    username: 'operator',
+    email: 'operator@nhl.com',
+    password: 'password',
+    role: 'operator',
+    canControlRemote: true,
+  },
+  {
+    id: 'user-1',
+    name: 'Spectator User',
+    username: 'user',
+    email: 'user@nhl.com',
+    password: 'password',
+    role: 'viewer',
+    canControlRemote: false,
   }
 ];
 
@@ -27,7 +40,45 @@ export function getRegisteredUsers() {
   try {
     const data = localStorage.getItem(USERS_STORAGE_KEY);
     if (data) {
-      return JSON.parse(data);
+      const users = JSON.parse(data);
+      let needsSave = false;
+      const normalized = users.map(u => {
+        let role = u.role;
+        let canControlRemote = u.canControlRemote;
+        if (!role) {
+          needsSave = true;
+          if (u.username === 'admin' || u.email?.includes('admin')) {
+            role = 'admin';
+            canControlRemote = true;
+          } else if (u.username === 'operator' || u.email?.includes('operator')) {
+            role = 'operator';
+            canControlRemote = true;
+          } else {
+            role = 'viewer';
+            canControlRemote = false;
+          }
+        }
+        return {
+          ...u,
+          role,
+          canControlRemote: canControlRemote ?? (role === 'admin' || role === 'operator'),
+        };
+      });
+
+      // Ensure admin & operator defaults exist
+      if (!normalized.some(u => u.username === 'admin')) {
+        normalized.unshift(DEFAULT_USERS[0]);
+        needsSave = true;
+      }
+      if (!normalized.some(u => u.username === 'operator')) {
+        normalized.splice(1, 0, DEFAULT_USERS[1]);
+        needsSave = true;
+      }
+
+      if (needsSave) {
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(normalized));
+      }
+      return normalized;
     }
   } catch (e) {
     console.warn('Error reading registered users:', e);
@@ -67,11 +118,16 @@ export async function registerUser({ name, username, email, password }) {
       sessionStorage.setItem(TOKEN_KEY, data.token);
     }
 
+    const role = data.user.role || (data.user.username === 'admin' ? 'admin' : (data.user.username === 'operator' ? 'operator' : 'viewer'));
+    const canControlRemote = data.user.canControlRemote ?? (role === 'admin' || role === 'operator');
+
     const user = {
       id: String(data.user.id),
       name: data.user.name,
       username: data.user.username,
       email: data.user.email,
+      role,
+      canControlRemote,
     };
 
     setCurrentUser(user);
@@ -116,11 +172,16 @@ export async function loginUser(identifier, password) {
       sessionStorage.setItem(TOKEN_KEY, data.token);
     }
 
+    const role = data.user.role || (data.user.username === 'admin' ? 'admin' : (data.user.username === 'operator' ? 'operator' : 'viewer'));
+    const canControlRemote = data.user.canControlRemote ?? (role === 'admin' || role === 'operator');
+
     const user = {
       id: String(data.user.id),
       name: data.user.name,
       username: data.user.username,
       email: data.user.email,
+      role,
+      canControlRemote,
     };
 
     setCurrentUser(user);
@@ -152,11 +213,16 @@ export async function checkSession() {
     if (res.ok) {
       const data = await res.json();
       if (data.user) {
+        const role = data.user.role || (data.user.username === 'admin' ? 'admin' : (data.user.username === 'operator' ? 'operator' : 'viewer'));
+        const canControlRemote = data.user.canControlRemote ?? (role === 'admin' || role === 'operator');
+
         const user = {
           id: String(data.user.id),
           name: data.user.name,
           username: data.user.username,
           email: data.user.email,
+          role,
+          canControlRemote,
         };
         setCurrentUser(user);
         return user;
@@ -192,7 +258,14 @@ export function getCurrentUser() {
   try {
     const data = sessionStorage.getItem(CURRENT_USER_KEY);
     if (data) {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (!parsed.role) {
+        parsed.role = (parsed.username === 'admin' || parsed.email?.includes('admin'))
+          ? 'admin'
+          : (parsed.username === 'operator' || parsed.email?.includes('operator') ? 'operator' : 'viewer');
+        parsed.canControlRemote = parsed.role === 'admin' || parsed.role === 'operator';
+      }
+      return parsed;
     }
   } catch (e) {
     console.warn('Error reading current user session:', e);
@@ -201,6 +274,9 @@ export function getCurrentUser() {
 }
 
 export function setCurrentUser(user) {
+  const role = user.role || ((user.username === 'admin' || user.email?.includes('admin')) ? 'admin' : ((user.username === 'operator' || user.email?.includes('operator')) ? 'operator' : 'viewer'));
+  const canControlRemote = user.canControlRemote !== undefined ? user.canControlRemote : (role === 'admin' || role === 'operator');
+
   sessionStorage.setItem(
     CURRENT_USER_KEY,
     JSON.stringify({
@@ -208,8 +284,63 @@ export function setCurrentUser(user) {
       name: user.name,
       username: user.username,
       email: user.email,
+      role,
+      canControlRemote,
     })
   );
+}
+
+/**
+ * Access Control Helpers
+ */
+export function canUserAccessRemote(user) {
+  if (!user) return false;
+  if (user.canControlRemote === true) return true;
+  if (user.role === 'admin' || user.role === 'operator') return true;
+  const username = (user.username || '').toLowerCase();
+  const email = (user.email || '').toLowerCase();
+  if (username === 'admin' || username === 'operator') return true;
+  if (email === 'admin@nhl.com' || email === 'operator@nhl.com') return true;
+  return false;
+}
+
+export function isUserAdmin(user) {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  const username = (user.username || '').toLowerCase();
+  const email = (user.email || '').toLowerCase();
+  return username === 'admin' || email === 'admin@nhl.com';
+}
+
+export function getAllRegisteredUsers() {
+  return getRegisteredUsers();
+}
+
+export function toggleUserRemoteAccess(userId) {
+  const users = getRegisteredUsers();
+  const updatedUsers = users.map(u => {
+    if (u.id === userId || u.username === userId || u.email === userId) {
+      const willHaveAccess = !u.canControlRemote;
+      return {
+        ...u,
+        canControlRemote: willHaveAccess,
+        role: willHaveAccess ? (u.role === 'admin' ? 'admin' : 'operator') : 'viewer',
+      };
+    }
+    return u;
+  });
+  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
+
+  // Sync active session if the current user was updated
+  const current = getCurrentUser();
+  if (current && (current.id === userId || current.username === userId || current.email === userId)) {
+    const updatedCurrent = updatedUsers.find(u => u.id === current.id || u.username === current.username);
+    if (updatedCurrent) {
+      setCurrentUser(updatedCurrent);
+    }
+  }
+
+  return updatedUsers;
 }
 
 /**
@@ -228,12 +359,19 @@ function localRegisterUser({ name, username, email, password }) {
     throw new Error('An account with this email or username already exists.');
   }
 
+  const isInitialAdmin = cleanUsername === 'admin' || cleanEmail === 'admin@nhl.com';
+  const isInitialOperator = cleanUsername === 'operator' || cleanEmail === 'operator@nhl.com';
+  const role = isInitialAdmin ? 'admin' : (isInitialOperator ? 'operator' : 'viewer');
+  const canControlRemote = isInitialAdmin || isInitialOperator;
+
   const newUser = {
     id: `user-${Date.now()}`,
     name: name.trim() || cleanUsername,
     username: cleanUsername,
     email: cleanEmail,
-    password: password
+    password: password,
+    role,
+    canControlRemote
   };
 
   const updatedUsers = [...users, newUser];
@@ -256,14 +394,17 @@ function localLoginUser(identifier, password) {
   if (!user) {
     if (
       (cleanIdentifier === 'admin' && (cleanPassword === 'admin123' || cleanPassword === 'password')) ||
-      (cleanIdentifier === 'user' && cleanPassword === 'password') ||
-      cleanPassword === '1234'
+      (cleanIdentifier === 'operator' && cleanPassword === 'password') ||
+      (cleanIdentifier === 'user' && cleanPassword === 'password')
     ) {
+      const role = cleanIdentifier === 'admin' ? 'admin' : (cleanIdentifier === 'operator' ? 'operator' : 'viewer');
       const fallbackUser = {
-        id: 'user-quick',
-        name: cleanIdentifier === 'admin' ? 'Scorekeeper' : 'Game Operator',
-        username: cleanIdentifier || 'user',
-        email: `${cleanIdentifier || 'user'}@nhl.com`
+        id: `user-${cleanIdentifier}`,
+        name: cleanIdentifier === 'admin' ? 'Scorekeeper (Admin)' : (cleanIdentifier === 'operator' ? 'Game Operator' : 'Spectator User'),
+        username: cleanIdentifier,
+        email: `${cleanIdentifier}@nhl.com`,
+        role,
+        canControlRemote: role === 'admin' || role === 'operator'
       };
       setCurrentUser(fallbackUser);
       return fallbackUser;

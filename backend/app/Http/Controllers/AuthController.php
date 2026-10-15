@@ -70,6 +70,11 @@ class AuthController extends Controller
         // Generate Sanctum token
         $token = $user->createToken('web-session')->plainTextToken;
 
+        $isInitialAdmin = Str::lower($user->username) === 'admin';
+        $isInitialOperator = Str::lower($user->username) === 'operator';
+        $role = $isInitialAdmin ? 'admin' : ($isInitialOperator ? 'operator' : 'viewer');
+        $canControlRemote = $isInitialAdmin || $isInitialOperator;
+
         return response()->json([
             'status' => 'success',
             'message' => 'Account created successfully with encrypted session.',
@@ -78,6 +83,8 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'username' => $user->username,
                 'email' => $user->email,
+                'role' => $role,
+                'canControlRemote' => $canControlRemote,
             ],
             'token' => $token,
         ], 201);
@@ -139,6 +146,11 @@ class AuthController extends Controller
         // Issue Sanctum token for flexible API usage
         $token = $user->createToken('web-session')->plainTextToken;
 
+        $isInitialAdmin = Str::lower($user->username) === 'admin';
+        $isInitialOperator = Str::lower($user->username) === 'operator';
+        $role = $isInitialAdmin ? 'admin' : ($isInitialOperator ? 'operator' : 'viewer');
+        $canControlRemote = $isInitialAdmin || $isInitialOperator;
+
         return response()->json([
             'status' => 'success',
             'message' => 'Login successful. Session authenticated.',
@@ -147,6 +159,8 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'username' => $user->username,
                 'email' => $user->email,
+                'role' => $role,
+                'canControlRemote' => $canControlRemote,
             ],
             'token' => $token,
         ]);
@@ -167,6 +181,11 @@ class AuthController extends Controller
             ], 401);
         }
 
+        $isInitialAdmin = Str::lower($user->username) === 'admin';
+        $isInitialOperator = Str::lower($user->username) === 'operator';
+        $role = $isInitialAdmin ? 'admin' : ($isInitialOperator ? 'operator' : 'viewer');
+        $canControlRemote = $isInitialAdmin || $isInitialOperator;
+
         return response()->json([
             'status' => 'authenticated',
             'user' => [
@@ -174,6 +193,8 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'username' => $user->username,
                 'email' => $user->email,
+                'role' => $role,
+                'canControlRemote' => $canControlRemote,
             ],
         ]);
     }

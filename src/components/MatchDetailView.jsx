@@ -12,7 +12,14 @@ import { useGameClock } from '../hooks/useGameClock';
 import { formatPeriodName } from '../utils/timeFormatter';
 import { MatchTimeline } from './MatchTimeline';
 
-export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLoggedIn, onOpenLogin }) {
+export function MatchDetailView({ 
+  matchState, 
+  onBackToList, 
+  onOpenRemote, 
+  isLoggedIn, 
+  canAccessRemote = false,
+  onOpenLogin 
+}) {
   const [activeTab, setActiveTab] = useState('Overview');
 
   // Precision game clock
@@ -404,6 +411,7 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
                 isRunning={isRunning} 
                 formattedTime={formattedTime}
                 isLoggedIn={isLoggedIn}
+                canAccessRemote={canAccessRemote}
                 onOpenRemote={onOpenRemote}
               />
             )}
@@ -667,17 +675,24 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
             {/* Operator Quick Action */}
             <div className="mt-6 pt-5 border-t border-gray-100">
               {isLoggedIn ? (
-                <div>
-                  <button
-                    onClick={onOpenRemote}
-                    className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-xs transition-all active:scale-98 cursor-pointer"
-                  >
-                    <span>Open Remote Control</span>
-                  </button>
-                  <p className="text-[11px] text-gray-400 text-center mt-2 font-medium">
-                    Adjust scores, start clock & periods in real time
-                  </p>
-                </div>
+                canAccessRemote ? (
+                  <div>
+                    <button
+                      onClick={onOpenRemote}
+                      className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-xs transition-all active:scale-98 cursor-pointer"
+                    >
+                      <span>Open Remote Control</span>
+                    </button>
+                    <p className="text-[11px] text-gray-400 text-center mt-2 font-medium">
+                      Adjust scores, start clock & periods in real time
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-gray-50/70 border border-gray-100 rounded-xl text-center">
+                    <span className="text-xs font-bold text-gray-700 block">Spectator View Active</span>
+                    <span className="text-[11px] text-gray-400 mt-0.5 block">Scoreboard remote control is restricted to official game operators.</span>
+                  </div>
+                )
               ) : (
                 <button
                   onClick={onOpenLogin}

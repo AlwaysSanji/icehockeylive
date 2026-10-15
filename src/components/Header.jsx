@@ -5,6 +5,7 @@ export function Header({
   currentView, 
   setView, 
   currentUser, 
+  canAccessRemote = false,
   onLogout,
   onOpenLogin
 }) {
@@ -17,6 +18,7 @@ export function Header({
   };
 
   const isLoggedIn = Boolean(currentUser);
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.username === 'admin' || currentUser?.email?.includes('admin');
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-xs">
@@ -49,42 +51,52 @@ export function Header({
           {/* If Logged in: show switcher & logout */}
           {isLoggedIn ? (
             <div className="flex items-center gap-2">
-              <div className="bg-gray-100 p-1 rounded-xl flex items-center gap-1 border border-gray-200">
-                <button
-                  onClick={() => setView('list')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    currentView === 'list' || currentView === 'detail'
-                      ? 'bg-white text-gray-900 shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Scoreboard
-                </button>
-                <button
-                  onClick={() => setView('remote')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    currentView === 'remote'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <span>Remote Control</span>
-                </button>
-              </div>
+              {canAccessRemote && (
+                <div className="bg-gray-100 p-1 rounded-xl flex items-center gap-1 border border-gray-200">
+                  <button
+                    onClick={() => setView('list')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      currentView === 'list' || currentView === 'detail'
+                        ? 'bg-white text-gray-900 shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Scoreboard
+                  </button>
+                  <button
+                    onClick={() => setView('remote')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      currentView === 'remote'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <span>Remote Control</span>
+                  </button>
+                </div>
+              )}
 
               {/* User greeting */}
               <div className="hidden lg:flex items-center px-2.5 py-1 text-xs text-gray-600 font-medium bg-gray-50 rounded-lg border border-gray-100">
                 <span className="truncate max-w-[120px]">{currentUser.name}</span>
-                {(currentUser.username === 'admin' || currentUser.email?.includes('admin')) && (
-                  <span className="ml-1.5 text-[10px] font-extrabold text-blue-600 uppercase">
+                {isAdmin ? (
+                  <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-extrabold uppercase rounded-md">
                     Admin
+                  </span>
+                ) : canAccessRemote ? (
+                  <span className="ml-1.5 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-extrabold uppercase rounded-md">
+                    Operator
+                  </span>
+                ) : (
+                  <span className="ml-1.5 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-bold uppercase rounded-md border border-gray-200">
+                    Spectator
                   </span>
                 )}
               </div>
 
               <button
                 onClick={onLogout}
-                className="px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-200"
+                className="px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-200 cursor-pointer"
                 title="Log out"
               >
                 <span className="hidden sm:inline">Logout</span>

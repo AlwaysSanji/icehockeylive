@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Shield, Users, UserCheck, UserX } from 'lucide-react';
 import { getTeamLineup } from '../constants/hockeyData';
+import { getAllRegisteredUsers, toggleUserRemoteAccess } from '../services/authService';
 
-export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning }) {
+export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning, currentUser }) {
   const isCompleted = matchState?.period === 'FT' || matchState?.status === 'Finished' || matchState?.status === 'FT';
-  const [activeTab, setActiveTab] = useState(() => isCompleted ? 'score' : 'time'); // 'time', 'score', 'schedule', 'timeline'
+  const [activeTab, setActiveTab] = useState(() => isCompleted ? 'score' : 'time'); // 'time', 'score', 'schedule', 'timeline', 'users'
   const [notification, setNotification] = useState('');
+  const [registeredUsers, setRegisteredUsers] = useState(() => getAllRegisteredUsers());
 
   // Switch to score tab if match becomes completed
   useEffect(() => {
@@ -29,6 +31,17 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
   const showNotification = (msg) => {
     setNotification(msg);
     setTimeout(() => setNotification(''), 3000);
+  };
+
+  const handleToggleUserAccess = (userId, userName) => {
+    const updated = toggleUserRemoteAccess(userId);
+    setRegisteredUsers(updated);
+    const target = updated.find(u => u.id === userId || u.username === userId);
+    showNotification(
+      target?.canControlRemote
+        ? `Granted remote control access to ${userName} (Role: Operator)`
+        : `Revoked remote control access for ${userName} (Role: Spectator)`
+    );
   };
 
   const handleApplyTime = (e) => {
@@ -283,6 +296,18 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
             }`}
           >
             <span>Set Timeline</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'users'
+                ? 'bg-white text-blue-600 shadow-xs'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>User Access</span>
           </button>
         </div>
       </div>
@@ -992,6 +1017,111 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* --- TAB 5: USER ROLES & REMOTE ACCESS PERMISSIONS --- */}
+      {activeTab === 'users' && (
+        <div className="pt-6 space-y-6">
+          <div className="bg-gray-50/70 p-5 rounded-2xl border border-gray-200/60">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-600" />
+                  <span>User Permissions & Remote Access Control</span>
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Control which accounts have permission to operate the live scoreboard and game clock. Regular spectator accounts cannot edit scores.
+                </p>
+              </div>
+
+              {/* Quick Summary Pill Badges */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="px-2.5 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg border border-blue-100">
+                  {registeredUsers.filter(u => u.canControlRemote).length} Operators
+                </span>
+                <span className="px-2.5 py-1 bg-gray-100 text-gray-600 font-medium rounded-lg border border-gray-200">
+                  {registeredUsers.filter(u => !u.canControlRemote).length} Spectators
+                </span>
+              </div>
+            </div>
+
+            {/* User List Table */}
+            <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+              {registeredUsers.map((user) => {
+                const isMasterAdmin = user.username === 'admin';
+                const hasRemote = user.canControlRemote === true || user.role === 'admin' || user.role === 'operator';
+
+                return (
+                  <div key={user.id || user.username} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-gray-50/50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                        isMasterAdmin
+                          ? 'bg-blue-600 text-white'
+                          : hasRemote
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {user.name?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || 'U'}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-gray-900">{user.name}</span>
+                          <span className="text-[11px] font-mono text-gray-400">@{user.username}</span>
+                          {isMasterAdmin ? (
+                            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-black rounded-md">
+                              ADMIN
+                            </span>
+                          ) : hasRemote ? (
+                            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-md">
+                              OPERATOR
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-medium rounded-md">
+                              SPECTATOR
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-gray-400">{user.email}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      {isMasterAdmin ? (
+                        <span className="text-xs font-semibold text-gray-400 px-3 py-1 bg-gray-50 rounded-lg border border-gray-100">
+                          Permanent Admin
+                        </span>
+                      ) : hasRemote ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleUserAccess(user.id || user.username, user.name)}
+                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl transition-colors cursor-pointer border border-red-200 flex items-center gap-1.5"
+                          title="Revoke remote control permissions"
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                          <span>Revoke Remote Access</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleUserAccess(user.id || user.username, user.name)}
+                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-colors cursor-pointer border border-emerald-200 flex items-center gap-1.5"
+                          title="Grant remote control permissions"
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>Grant Remote Access</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 p-3.5 bg-blue-50/60 rounded-xl border border-blue-100 text-[11px] text-blue-800 leading-relaxed">
+              <strong>Access Policy:</strong> Only accounts with <strong>Admin</strong> or <strong>Operator</strong> privileges can access the live Remote Control scoreboard. <strong>Spectator</strong> users can track games, rosters, and live stats, but cannot start/stop the clock or log scores.
+            </div>
           </div>
         </div>
       )}

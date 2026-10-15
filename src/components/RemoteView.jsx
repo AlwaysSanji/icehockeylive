@@ -5,7 +5,8 @@ import {
   RotateCcw, 
   Plus, 
   Minus, 
-  Clock
+  Clock,
+  ShieldAlert
 } from 'lucide-react';
 import { useGameClock } from '../hooks/useGameClock';
 import { NHL_TEAMS, getTeamLineup, suggestTeamLineup, generateTeamCrestSvg } from '../constants/hockeyData';
@@ -17,6 +18,7 @@ export function RemoteView({
   matches = [],
   scoreboard, 
   currentUser,
+  canAccessRemote: propCanAccessRemote,
   onSelectMatch,
   onAddMatch,
   onDeleteMatch,
@@ -25,8 +27,43 @@ export function RemoteView({
   onLogout
 }) {
   const { formattedTime, remainingSeconds, isRunning } = useGameClock(matchState?.clock);
-  const isAdmin = currentUser?.username === 'admin' || currentUser?.email?.includes('admin');
+  const canAccessRemote = propCanAccessRemote ?? (currentUser?.canControlRemote || currentUser?.role === 'admin' || currentUser?.role === 'operator' || currentUser?.username === 'admin');
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.username === 'admin' || currentUser?.email?.includes('admin');
   const [consoleTab, setConsoleTab] = useState('operator'); // 'operator' or 'admin'
+
+  // Unauthorized spectator guard
+  if (!canAccessRemote) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 text-center">
+        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-xs">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center mx-auto mb-4 shadow-2xs">
+            <ShieldAlert className="w-7 h-7" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-1.5">Remote Control Restricted</h2>
+          <p className="text-xs text-gray-500 leading-relaxed mb-6">
+            Your account <strong className="text-gray-800">@{currentUser?.username || 'user'}</strong> is registered as a Spectator. Remote control access is strictly restricted to authorized Scorekeepers and Administrators.
+          </p>
+          <div className="space-y-2.5">
+            <button
+              onClick={onBackToScoreboard}
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            >
+              Return to Public Scoreboard
+            </button>
+            <button
+              onClick={onLogout}
+              className="w-full py-2.5 px-4 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold transition-all cursor-pointer border border-gray-100"
+            >
+              Sign In with Authorized Operator Account
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-5">
+            Contact your game administrator (<span className="text-blue-600 font-medium">admin@nhl.com</span>) to request live operator privileges.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Team metadata & crests
   const homeTeamId = matchState?.home?.id;
@@ -897,6 +934,7 @@ export function RemoteView({
             scoreboard={scoreboard}
             remainingSeconds={remainingSeconds}
             isRunning={isRunning}
+            currentUser={currentUser}
           />
         </div>
       ) : (
