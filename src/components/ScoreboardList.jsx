@@ -77,9 +77,6 @@ export function ScoreboardList({
         liveCount={liveMatches.length}
         upcomingCount={upcomingMatches.length}
         finishedCount={finishedMatches.length}
-        canManageMatches={canManageMatches}
-        onOpenAddMatch={onOpenAddMatch}
-        onOpenDeleteMatch={onOpenDeleteMatch}
         onOpenSearch={onOpenSearch}
       />
 

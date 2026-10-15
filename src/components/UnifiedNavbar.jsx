@@ -3,9 +3,7 @@ import {
   Trophy, 
   Calendar, 
   CheckCircle2, 
-  Search, 
-  Plus, 
-  Trash2
+  Search 
 } from 'lucide-react';
 
 export function UnifiedNavbar({
@@ -14,9 +12,6 @@ export function UnifiedNavbar({
   liveCount = 0,
   upcomingCount = 0,
   finishedCount = 0,
-  canManageMatches = false, // true if admin or operator
-  onOpenAddMatch,
-  onOpenDeleteMatch,
   onOpenSearch
 }) {
   return (
@@ -91,9 +86,8 @@ export function UnifiedNavbar({
         </button>
       </div>
 
-      {/* Right: Actions, Search, View Switcher & Auth */}
-      <div className="flex items-center gap-2 shrink-0 flex-wrap justify-between md:justify-end">
-        {/* Global Instant Search Button */}
+      {/* Right: Instant Search */}
+      <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
           onClick={onOpenSearch}
@@ -104,31 +98,6 @@ export function UnifiedNavbar({
           <span className="hidden sm:inline">Search</span>
           <kbd className="hidden lg:inline text-[9px] bg-white border border-gray-200 rounded px-1 text-gray-400">⌘K</kbd>
         </button>
-
-        {/* Admin/Operator Match Actions */}
-        {canManageMatches && onOpenAddMatch && (
-          <button
-            type="button"
-            onClick={onOpenAddMatch}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all active:scale-98 cursor-pointer"
-            title="Create new match fixture"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Add Match</span>
-          </button>
-        )}
-
-        {canManageMatches && onOpenDeleteMatch && (
-          <button
-            type="button"
-            onClick={onOpenDeleteMatch}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-700 border border-gray-200 hover:border-red-200 text-xs font-bold transition-colors cursor-pointer"
-            title="Delete a match fixture"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Remove</span>
-          </button>
-        )}
       </div>
     </nav>
   );

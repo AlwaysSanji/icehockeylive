@@ -1298,12 +1298,6 @@ export function RemoteView({
         liveCount={liveMatchesCount}
         upcomingCount={upcomingMatchesCount}
         finishedCount={finishedMatchesCount}
-        canManageMatches={true}
-        onOpenAddMatch={() => setIsAddModalOpen(true)}
-        onOpenDeleteMatch={() => {
-          setSelectedMatchToDelete(matchState?.id || (matches[0] && matches[0].id));
-          setIsDeleteModalOpen(true);
-        }}
         onOpenSearch={onOpenSearch}
       />
 
