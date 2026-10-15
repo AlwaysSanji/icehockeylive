@@ -5,8 +5,7 @@ import {
   RotateCcw, 
   Plus, 
   Minus, 
-  Clock, 
-  AlertCircle 
+  Clock
 } from 'lucide-react';
 import { useGameClock } from '../hooks/useGameClock';
 import { NHL_TEAMS, getTeamLineup, suggestTeamLineup, generateTeamCrestSvg } from '../constants/hockeyData';
@@ -26,7 +25,6 @@ export function RemoteView({
   onLogout
 }) {
   const { formattedTime, remainingSeconds, isRunning } = useGameClock(matchState?.clock);
-  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const isAdmin = currentUser?.username === 'admin' || currentUser?.email?.includes('admin');
   const [consoleTab, setConsoleTab] = useState('operator'); // 'operator' or 'admin'
 
@@ -1544,31 +1542,6 @@ export function RemoteView({
               </div>
             </div>
           )}
-
-          {/* 8. RESET CURRENT MATCH (Live matches only) */}
-          {!isCompleted && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 bg-white rounded-3xl border border-gray-100 shadow-xs">
-              <div>
-                <h4 className="font-bold text-base text-gray-900">
-                  Reset Current Game Scores & Clock
-                </h4>
-                <p className="text-xs text-gray-400">
-                  Reset scores to 0 - 0, period to 1, and clock back to 20:00 across all displays
-                </p>
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setResetConfirmOpen(true)}
-                  className="px-5 py-3 bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-600 font-bold text-sm rounded-2xl transition-all border border-gray-200 hover:border-red-200 cursor-pointer"
-                  title="Reset scores and start a fresh game"
-                >
-                  <span>Reset Game</span>
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -2702,42 +2675,6 @@ export function RemoteView({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* --- MODAL 5: RESET GAME CONFIRMATION MODAL --- */}
-      {resetConfirmOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95">
-            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 text-center mb-2">
-              Start a New Game?
-            </h3>
-            <p className="text-xs text-gray-500 text-center mb-6">
-              This will reset the score to 0 - 0, set the period back to 1, and reset the clock to 20:00 across all displays.
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setResetConfirmOpen(false)}
-                className="flex-1 py-3 px-4 rounded-xl border border-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-50 cursor-pointer"
-              >
-                <span>Cancel</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  scoreboard.resetMatch();
-                  setResetConfirmOpen(false);
-                }}
-                className="flex-1 py-3 px-4 rounded-xl bg-red-600 text-white font-bold text-sm hover:bg-red-700 shadow-md shadow-red-600/20 cursor-pointer"
-              >
-                <span>Reset Match</span>
-              </button>
-            </div>
           </div>
         </div>
       )}
