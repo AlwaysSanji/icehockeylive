@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { getTeamLineup } from '../constants/hockeyData';
 
-export function MatchTimeline({ matchState, homeName, awayName, isRunning, formattedTime }) {
+export function MatchTimeline({ matchState, homeName, awayName, isRunning, formattedTime, isLoggedIn, onOpenRemote }) {
   const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'goals', 'penalties'
   const [hoveredEvent, setHoveredEvent] = useState(null);
 
@@ -19,8 +19,11 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
       return matchState.events;
     }
 
-    // Procedural generation if events array is not explicitly stored
-    const generated = [];
+    // For live matches or when events array is explicitly empty, only display what admin has set
+    const isLiveOrUpcoming = matchState?.period !== 'FT' || matchState?.status === 'Live' || matchState?.status === 'Upcoming';
+    if (isLiveOrUpcoming || Array.isArray(matchState?.events)) {
+      return [];
+    }
     let evtId = 1;
 
     const p1H = matchState?.periodScores?.p1?.home ?? 0;
@@ -169,38 +172,52 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
           </p>
         </div>
 
-        {/* Filter Toggle Buttons (No pill capsules or icons) */}
-        <div className="flex items-center gap-4 text-xs font-bold">
-          <button
-            onClick={() => setActiveFilter('all')}
-            className={`py-1 transition-colors cursor-pointer ${
-              activeFilter === 'all'
-                ? 'text-gray-900 border-b-2 border-gray-900 font-black'
-                : 'text-gray-400 hover:text-gray-700 font-semibold'
-            }`}
-          >
-            <span>All Incidents</span>
-          </button>
-          <button
-            onClick={() => setActiveFilter('goals')}
-            className={`py-1 transition-colors cursor-pointer ${
-              activeFilter === 'goals'
-                ? 'text-blue-600 border-b-2 border-blue-600 font-black'
-                : 'text-gray-400 hover:text-gray-700 font-semibold'
-            }`}
-          >
-            <span>Goals Only</span>
-          </button>
-          <button
-            onClick={() => setActiveFilter('penalties')}
-            className={`py-1 transition-colors cursor-pointer ${
-              activeFilter === 'penalties'
-                ? 'text-gray-900 border-b-2 border-gray-900 font-black'
-                : 'text-gray-400 hover:text-gray-700 font-semibold'
-            }`}
-          >
-            <span>Penalties</span>
-          </button>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Admin shortcut if logged in */}
+          {isLoggedIn && onOpenRemote && (
+            <button
+              type="button"
+              onClick={onOpenRemote}
+              className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+              title="Open Remote Control to record goals or penalties"
+            >
+              <span>+ Set Timeline (Admin)</span>
+            </button>
+          )}
+
+          {/* Filter Toggle Buttons (No pill capsules or icons) */}
+          <div className="flex items-center gap-4 text-xs font-bold">
+            <button
+              onClick={() => setActiveFilter('all')}
+              className={`py-1 transition-colors cursor-pointer ${
+                activeFilter === 'all'
+                  ? 'text-gray-900 border-b-2 border-gray-900 font-black'
+                  : 'text-gray-400 hover:text-gray-700 font-semibold'
+              }`}
+            >
+              <span>All Incidents ({allEvents.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveFilter('goals')}
+              className={`py-1 transition-colors cursor-pointer ${
+                activeFilter === 'goals'
+                  ? 'text-blue-600 border-b-2 border-blue-600 font-black'
+                  : 'text-gray-400 hover:text-gray-700 font-semibold'
+              }`}
+            >
+              <span>Goals Only</span>
+            </button>
+            <button
+              onClick={() => setActiveFilter('penalties')}
+              className={`py-1 transition-colors cursor-pointer ${
+                activeFilter === 'penalties'
+                  ? 'text-gray-900 border-b-2 border-gray-900 font-black'
+                  : 'text-gray-400 hover:text-gray-700 font-semibold'
+              }`}
+            >
+              <span>Penalties</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -295,13 +312,30 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
       {/* 3. Chronological Incident Stream (Period-by-Period Timeline) */}
       <div className="space-y-6 pt-2">
         {isUpcoming ? (
-          <div className="p-8 bg-gray-50 rounded-2xl border border-gray-100 text-center text-gray-400 text-sm">
-            This match is scheduled for puck drop at <strong className="text-gray-700">{matchState?.dateTime || '19:00'}</strong>.
-            The live timeline stream will activate as soon as the match begins.
+          <div className="p-8 bg-gray-50 rounded-2xl border border-gray-100 text-center text-gray-500 text-xs">
+            <span className="text-gray-400 font-semibold block mb-1">UPCOMING FIXTURE</span>
+            <h4 className="font-bold text-gray-900 text-sm mb-1">Scheduled for Puck Drop</h4>
+            <p className="text-gray-400 max-w-md mx-auto">
+              This match is scheduled for puck drop at <strong className="text-gray-700">{matchState?.dateTime || '19:00'}</strong>.
+              The live timeline stream will activate as goals and penalties are recorded.
+            </p>
           </div>
         ) : allEvents.length === 0 ? (
-          <div className="p-8 bg-gray-50 rounded-2xl border border-gray-100 text-center text-gray-400 text-sm">
-            Puck drop completed. No goals or penalties recorded yet (0 - 0).
+          <div className="p-8 bg-gray-50 rounded-2xl border border-gray-100 text-center text-gray-500 text-xs">
+            <span className="text-gray-400 font-semibold block mb-1">LIVE MATCH TIMELINE</span>
+            <h4 className="font-bold text-gray-900 text-sm mb-1">No Timeline Incidents Recorded Yet</h4>
+            <p className="text-gray-400 max-w-md mx-auto mb-4">
+              Official timeline events (goals, assists, and penalties) are recorded live by the arena administrator.
+            </p>
+            {isLoggedIn && onOpenRemote && (
+              <button
+                type="button"
+                onClick={onOpenRemote}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                <span>Open Remote Console to Set Timeline</span>
+              </button>
+            )}
           </div>
         ) : (
           ['P1', 'P2', 'P3', 'OT', 'SO'].map((periodKey) => {

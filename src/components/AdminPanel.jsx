@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Check } from 'lucide-react';
+import { getTeamLineup } from '../constants/hockeyData';
 
 export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning }) {
-  const [activeTab, setActiveTab] = useState('time'); // 'time', 'score', 'schedule'
+  const [activeTab, setActiveTab] = useState('time'); // 'time', 'score', 'schedule', 'timeline'
   const [notification, setNotification] = useState('');
 
   // 1. Time Correction State
@@ -134,6 +135,85 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
     showNotification('Match schedule & status updated successfully');
   };
 
+  // 4. Timeline Incident State
+  const [timelineType, setTimelineType] = useState('goal'); // 'goal', 'penalty', 'timeout'
+  const [timelineTeam, setTimelineTeam] = useState('home');
+  const [timelinePlayer, setTimelinePlayer] = useState('');
+  const [timelineAssist, setTimelineAssist] = useState('');
+  const [timelineInfraction, setTimelineInfraction] = useState('Tripping');
+  const [timelineMinutes, setTimelineMinutes] = useState(2);
+  const [timelinePeriod, setTimelinePeriod] = useState(matchState?.period || '1');
+  const [timelineClock, setTimelineClock] = useState('10:00');
+  const [timelineGoalType, setTimelineGoalType] = useState('EV');
+  const [timelineAutoScore, setTimelineAutoScore] = useState(true);
+  const [timelineAutoPP, setTimelineAutoPP] = useState(true);
+
+  const homeLineup = useMemo(() => getTeamLineup(matchState.home?.id, matchState.home?.name), [matchState.home?.id, matchState.home?.name]);
+  const awayLineup = useMemo(() => getTeamLineup(matchState.away?.id, matchState.away?.name), [matchState.away?.id, matchState.away?.name]);
+
+  const handleAdminAddIncident = async (e) => {
+    e?.preventDefault();
+    const periodLabel = `P${timelinePeriod || matchState?.period || '1'}`;
+    const teamName = timelineTeam === 'home' ? (matchState.home?.name || 'Home') : (matchState.away?.name || 'Away');
+
+    if (timelineType === 'goal') {
+      if (timelineAutoScore) {
+        if (timelineTeam === 'home') scoreboard.incrementHomeScore();
+        else scoreboard.incrementAwayScore();
+      }
+      const newH = (matchState.home?.score || 0) + (timelineAutoScore && timelineTeam === 'home' ? 1 : 0);
+      const newA = (matchState.away?.score || 0) + (timelineAutoScore && timelineTeam === 'away' ? 1 : 0);
+
+      await scoreboard.addIncident({
+        time: timelineClock || '10:00',
+        period: periodLabel,
+        team: timelineTeam,
+        type: 'goal',
+        scorer: timelinePlayer || `${teamName} Scorer`,
+        assist: timelineAssist || '',
+        goalType: timelineGoalType,
+        score: `${newH} - ${newA}`,
+        text: `Goal! ${teamName} (${newH} - ${newA})`
+      });
+      showNotification(`Goal recorded on live timeline for ${teamName}`);
+    } else if (timelineType === 'penalty') {
+      await scoreboard.addIncident({
+        time: timelineClock || '10:00',
+        period: periodLabel,
+        team: timelineTeam,
+        type: 'penalty',
+        penaltyPlayer: timelinePlayer || `${teamName} Player`,
+        penaltyMin: timelineMinutes,
+        penaltyReason: timelineInfraction,
+        text: `${timelineMinutes} Min Penalty (${timelineInfraction}) - ${timelinePlayer}`
+      });
+      if (timelineAutoPP && scoreboard.setPowerPlay) {
+        scoreboard.setPowerPlay(timelineTeam === 'home' ? 'away' : 'home');
+      }
+      showNotification(`Penalty recorded on live timeline for ${teamName}`);
+    } else if (timelineType === 'timeout') {
+      await scoreboard.addIncident({
+        time: timelineClock || '10:00',
+        period: periodLabel,
+        team: timelineTeam,
+        type: 'timeout',
+        text: `30-Second Timeout Called by ${teamName}`
+      });
+      showNotification(`Timeout recorded on live timeline for ${teamName}`);
+    }
+
+    setTimelinePlayer('');
+    setTimelineAssist('');
+  };
+
+  const handleAdminDeleteIncident = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this incident from the timeline?')) return;
+    if (scoreboard.deleteIncident) {
+      await scoreboard.deleteIncident(id, false);
+      showNotification('Incident deleted from timeline');
+    }
+  };
+
   return (
     <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
       {/* Admin Panel Header */}
@@ -143,7 +223,7 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
             Administrator Master Controls
           </h3>
           <p className="text-[11px] text-gray-400">
-            Direct real-time override for time correction, scores, and schedule
+            Direct real-time override for time correction, scores, schedule, and live timeline
           </p>
         </div>
 
@@ -151,7 +231,7 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
         <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl">
           <button
             onClick={() => setActiveTab('time')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'time'
                 ? 'bg-white text-blue-600 shadow-xs'
                 : 'text-gray-600 hover:text-gray-900'
@@ -162,7 +242,7 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
 
           <button
             onClick={() => setActiveTab('score')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'score'
                 ? 'bg-white text-blue-600 shadow-xs'
                 : 'text-gray-600 hover:text-gray-900'
@@ -173,13 +253,24 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
 
           <button
             onClick={() => setActiveTab('schedule')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'schedule'
                 ? 'bg-white text-blue-600 shadow-xs'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             <span>Change Schedule</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('timeline')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'timeline'
+                ? 'bg-white text-blue-600 shadow-xs'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <span>Set Timeline</span>
           </button>
         </div>
       </div>
@@ -599,6 +690,294 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
             </button>
           </div>
         </form>
+      )}
+
+      {/* --- TAB 4: SET LIVE MATCH TIMELINE (SCORERS & PENALTIES) --- */}
+      {activeTab === 'timeline' && (
+        <div className="pt-6 space-y-6">
+          <div>
+            <h4 className="text-sm font-bold text-gray-900 mb-0.5">
+              Live Match Timeline Manager (Scorers & Penalties)
+            </h4>
+            <p className="text-xs text-gray-500">
+              Directly set goal scorers, assists, penalties, and timeouts on the live fixture timeline for {matchState.home?.name || 'Home'} vs {matchState.away?.name || 'Away'}.
+            </p>
+          </div>
+
+          {/* Incident Creation Form */}
+          <form onSubmit={handleAdminAddIncident} className="p-5 bg-gray-50/80 rounded-2xl border border-gray-200/80 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-200">
+              <span className="text-xs font-black uppercase text-gray-800 tracking-wider">
+                Log New Live Incident
+              </span>
+
+              {/* Event Type selector */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTimelineType('goal')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    timelineType === 'goal' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-gray-700 border border-gray-200'
+                  }`}
+                >
+                  Goal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimelineType('penalty')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    timelineType === 'penalty' ? 'bg-gray-900 text-white shadow-xs' : 'bg-white text-gray-700 border border-gray-200'
+                  }`}
+                >
+                  Penalty
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimelineType('timeout')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    timelineType === 'timeout' ? 'bg-purple-600 text-white shadow-xs' : 'bg-white text-gray-700 border border-gray-200'
+                  }`}
+                >
+                  Timeout
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Team Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Team
+                </label>
+                <select
+                  value={timelineTeam}
+                  onChange={(e) => setTimelineTeam(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                >
+                  <option value="home">{matchState.home?.name || 'Home Team'} (Home)</option>
+                  <option value="away">{matchState.away?.name || 'Away Team'} (Away)</option>
+                </select>
+              </div>
+
+              {/* Period Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Period
+                </label>
+                <select
+                  value={timelinePeriod}
+                  onChange={(e) => setTimelinePeriod(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
+                >
+                  <option value="1">1st Period (P1)</option>
+                  <option value="2">2nd Period (P2)</option>
+                  <option value="3">3rd Period (P3)</option>
+                  <option value="OT">Overtime (OT)</option>
+                  <option value="SO">Shootout (SO)</option>
+                </select>
+              </div>
+
+              {/* Game Clock Time */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Game Clock (Time)
+                </label>
+                <input
+                  type="text"
+                  value={timelineClock}
+                  onChange={(e) => setTimelineClock(e.target.value)}
+                  placeholder="e.g. 14:22"
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono font-bold outline-none"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Player / Infraction Row */}
+            {timelineType !== 'timeout' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    {timelineType === 'goal' ? 'Goal Scorer' : 'Penalized Player'}
+                  </label>
+                  <select
+                    value={timelinePlayer}
+                    onChange={(e) => {
+                      if (e.target.value !== 'custom') {
+                        setTimelinePlayer(e.target.value);
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer mb-1.5"
+                  >
+                    <option value="">-- Select from Roster --</option>
+                    {(timelineTeam === 'home' ? homeLineup : awayLineup).map(p => (
+                      <option key={p.number} value={p.name}>
+                        #{p.number} {p.name} ({p.pos})
+                      </option>
+                    ))}
+                    <option value="custom">-- Custom Name (Type Below) --</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={timelinePlayer}
+                    onChange={(e) => setTimelinePlayer(e.target.value)}
+                    placeholder="Player Name"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs outline-none"
+                    required
+                  />
+                </div>
+
+                {timelineType === 'goal' ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Primary Assist (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={timelineAssist}
+                      onChange={(e) => setTimelineAssist(e.target.value)}
+                      placeholder="e.g. Bedard C. or Kane P."
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs outline-none mt-7 sm:mt-0"
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Infraction
+                      </label>
+                      <select
+                        value={timelineInfraction}
+                        onChange={(e) => setTimelineInfraction(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
+                      >
+                        <option value="Tripping">Tripping</option>
+                        <option value="Slashing">Slashing</option>
+                        <option value="Roughing">Roughing</option>
+                        <option value="Hooking">Hooking</option>
+                        <option value="High-Sticking">High-Sticking</option>
+                        <option value="Interference">Interference</option>
+                        <option value="Cross-Checking">Cross-Checking</option>
+                        <option value="Boarding">Boarding</option>
+                        <option value="Holding">Holding</option>
+                        <option value="Misconduct">Misconduct</option>
+                        <option value="Delay of Game">Delay of Game</option>
+                        <option value="Spearing">Spearing</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Minutes (PIM)
+                      </label>
+                      <select
+                        value={timelineMinutes}
+                        onChange={(e) => setTimelineMinutes(parseInt(e.target.value, 10))}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
+                      >
+                        <option value={2}>2 Min Minor</option>
+                        <option value={4}>4 Min Double Minor</option>
+                        <option value={5}>5 Min Major</option>
+                        <option value={10}>10 Min Misconduct</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Checkbox Options & Submit */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+              <div className="flex items-center gap-4 text-xs font-semibold text-gray-700">
+                {timelineType === 'goal' && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={timelineAutoScore}
+                      onChange={(e) => setTimelineAutoScore(e.target.checked)}
+                      className="rounded text-blue-600 cursor-pointer"
+                    />
+                    <span>Automatically increment team score (+1)</span>
+                  </label>
+                )}
+                {timelineType === 'penalty' && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={timelineAutoPP}
+                      onChange={(e) => setTimelineAutoPP(e.target.checked)}
+                      className="rounded text-blue-600 cursor-pointer"
+                    />
+                    <span>Automatically activate opponent Power Play</span>
+                  </label>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                <span>Add Event to Live Timeline</span>
+              </button>
+            </div>
+          </form>
+
+          {/* List of currently recorded timeline events */}
+          <div>
+            <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">
+              Recorded Timeline Incidents ({(matchState.events || []).length})
+            </h4>
+
+            {(!matchState.events || matchState.events.length === 0) ? (
+              <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 text-center text-xs text-gray-400">
+                No timeline events recorded yet for this fixture. Use the form above to add goals and penalties.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {matchState.events.map((evt) => {
+                  const isGoal = evt.type === 'goal';
+                  const isPenalty = evt.type === 'penalty';
+                  const isHome = evt.team === 'home';
+                  const evtTeamName = isHome ? (matchState.home?.name || 'Home') : (matchState.away?.name || 'Away');
+
+                  return (
+                    <div
+                      key={evt.id}
+                      className="p-3 bg-white rounded-xl border border-gray-200 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="font-mono font-bold text-gray-500 w-12 shrink-0">{evt.time || '00:00'}</span>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 w-8 shrink-0">{evt.period || 'P1'}</span>
+                        <div className="min-w-0">
+                          <span className={`font-bold uppercase ${
+                            isGoal ? (isHome ? 'text-blue-600' : 'text-amber-600') : isPenalty ? 'text-gray-900' : 'text-purple-600'
+                          }`}>
+                            {isGoal ? 'Goal' : isPenalty ? `${evt.penaltyMin || 2}m Penalty` : 'Timeout'}:
+                          </span>
+                          <span className="font-semibold text-gray-800 ml-1.5">
+                            {isGoal ? evt.scorer : isPenalty ? `${evt.penaltyPlayer} (${evt.penaltyReason || 'Tripping'})` : evtTeamName}
+                          </span>
+                          {isGoal && evt.assist && (
+                            <span className="text-gray-400 ml-1">(Assist: {evt.assist})</span>
+                          )}
+                          <span className="text-gray-400 ml-2 font-medium">• {evtTeamName}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAdminDeleteIncident(evt.id, isGoal)}
+                        className="px-2.5 py-1 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

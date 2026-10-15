@@ -21,7 +21,10 @@ import {
   selectActiveMatch,
   adjustShots,
   setPowerPlay,
-  addMatchIncident
+  addMatchIncident,
+  updateMatchIncident,
+  deleteMatchIncident,
+  setMatchIncidents
 } from '../services/scoreboardService';
 import { arenaAudio } from '../components/GoalHorn';
 import { isFirebaseConfigured } from '../firebase/config';
@@ -103,6 +106,9 @@ export function useScoreboard() {
     // Power Play & Incidents
     setPowerPlay: (team) => setPowerPlay(matchState, team),
     addIncident: (incident) => addMatchIncident(matchState, incident),
+    updateIncident: (incidentId, updatedData) => updateMatchIncident(matchState, incidentId, updatedData),
+    deleteIncident: (incidentId, decrementScore) => deleteMatchIncident(matchState, incidentId, decrementScore),
+    setIncidents: (eventsList) => setMatchIncidents(matchState, eventsList),
     playPeriodBuzzer: () => arenaAudio.playPeriodBuzzer(),
     // Game Clock
     startClock: () => startClock(matchState),

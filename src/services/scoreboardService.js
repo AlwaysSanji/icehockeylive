@@ -435,6 +435,7 @@ export async function addMatch(matchData) {
     country: 'USA',
     status: matchData.status || (matchData.period === 'FT' ? 'Finished' : (matchData.period === 'UPCOMING' ? 'Upcoming' : 'Live')),
     statusBadge: matchData.statusBadge || (matchData.period === 'FT' ? 'FT' : (matchData.period === 'UPCOMING' ? '19:00' : 'P1')),
+    events: Array.isArray(matchData.events) ? matchData.events : [],
     lastUpdatedAt: now
   };
 
@@ -617,11 +618,12 @@ export async function setPowerPlay(currentState, team) {
   await updateMatchState(updatedState);
 }
 
-// Add a live match incident (goal, penalty, etc.) to the match timeline
+// Add a live match incident (goal, penalty, timeout) to the match timeline
 export async function addMatchIncident(currentState, incident) {
-  const currentEvents = currentState.events || [];
+  const currentEvents = Array.isArray(currentState.events) ? currentState.events : [];
   const newEvent = {
-    id: Date.now(),
+    id: incident.id || Date.now().toString(),
+    createdAt: Date.now(),
     ...incident
   };
 
@@ -631,6 +633,65 @@ export async function addMatchIncident(currentState, incident) {
   };
 
   await updateMatchState(updatedState);
+  return updatedState;
+}
+
+// Update / Edit an existing timeline incident
+export async function updateMatchIncident(currentState, incidentId, updatedIncident) {
+  const currentEvents = Array.isArray(currentState.events) ? currentState.events : [];
+  const updatedEvents = currentEvents.map(evt => {
+    if (String(evt.id) === String(incidentId)) {
+      return {
+        ...evt,
+        ...updatedIncident,
+        id: evt.id
+      };
+    }
+    return evt;
+  });
+
+  const updatedState = {
+    ...currentState,
+    events: updatedEvents
+  };
+
+  await updateMatchState(updatedState);
+  return updatedState;
+}
+
+// Delete an incident from the timeline (with optional score rollback if it was a goal)
+export async function deleteMatchIncident(currentState, incidentId, decrementScore = false) {
+  const currentEvents = Array.isArray(currentState.events) ? currentState.events : [];
+  const target = currentEvents.find(evt => String(evt.id) === String(incidentId));
+  const remainingEvents = currentEvents.filter(evt => String(evt.id) !== String(incidentId));
+
+  let updatedState = {
+    ...currentState,
+    events: remainingEvents
+  };
+
+  // If a goal is deleted and requested, rollback score
+  if (decrementScore && target?.type === 'goal' && target?.team) {
+    const currentScore = updatedState[target.team]?.score || 0;
+    updatedState[target.team] = {
+      ...updatedState[target.team],
+      score: Math.max(0, currentScore - 1)
+    };
+  }
+
+  await updateMatchState(updatedState);
+  return updatedState;
+}
+
+// Bulk set or reorder match timeline incidents
+export async function setMatchIncidents(currentState, eventsList) {
+  const updatedState = {
+    ...currentState,
+    events: Array.isArray(eventsList) ? eventsList : []
+  };
+
+  await updateMatchState(updatedState);
+  return updatedState;
 }
 
 // Clock controls: Start, Pause, Reset, Adjust

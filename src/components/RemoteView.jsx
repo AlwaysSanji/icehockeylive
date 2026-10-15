@@ -87,8 +87,9 @@ export function RemoteView({
   // Switch Match Modal State
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
 
-  // Quick Incident Logger Modal State
+  // Quick Incident Logger & Timeline Editor Modal State
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
+  const [editingIncidentId, setEditingIncidentId] = useState(null);
   const [incidentTeam, setIncidentTeam] = useState('home');
   const [incidentType, setIncidentType] = useState('goal'); // 'goal', 'penalty', 'timeout'
   const [incidentPlayer, setIncidentPlayer] = useState('');
@@ -96,6 +97,9 @@ export function RemoteView({
   const [incidentPenaltyReason, setIncidentPenaltyReason] = useState('Tripping');
   const [incidentPenaltyMins, setIncidentPenaltyMins] = useState(2);
   const [incidentMinute, setIncidentMinute] = useState('');
+  const [incidentPeriod, setIncidentPeriod] = useState('1');
+  const [incidentGoalType, setIncidentGoalType] = useState('EV');
+  const [timelineFilter, setTimelineFilter] = useState('all'); // 'all', 'goal', 'penalty'
 
   // Spacebar keyboard shortcut for clock start/stop
   useEffect(() => {
@@ -259,76 +263,150 @@ export function RemoteView({
     }
   };
 
-  // Open Quick Incident Logger
-  const openIncidentLogger = (team, type = 'goal') => {
-    setIncidentTeam(team);
-    setIncidentType(type);
-    setIncidentMinute(formattedTime);
-    const activeLineup = team === 'home' ? homeLineup : awayLineup;
-    setIncidentPlayer(activeLineup[1]?.name || '');
-    setIncidentAssist(activeLineup[2]?.name || '');
+  // Chronological events array for active match
+  const currentEvents = Array.isArray(matchState?.events) ? matchState.events : [];
+  const filteredEvents = useMemo(() => {
+    if (timelineFilter === 'goal') return currentEvents.filter(e => e.type === 'goal');
+    if (timelineFilter === 'penalty') return currentEvents.filter(e => e.type === 'penalty');
+    return currentEvents;
+  }, [currentEvents, timelineFilter]);
+
+  // Open Quick Incident Logger (supports adding new or editing existing incident)
+  const openIncidentLogger = (team = 'home', type = 'goal', existingIncident = null) => {
+    if (existingIncident) {
+      setEditingIncidentId(existingIncident.id);
+      setIncidentTeam(existingIncident.team || team);
+      setIncidentType(existingIncident.type || type);
+      setIncidentMinute(existingIncident.time || formattedTime);
+      setIncidentPeriod(existingIncident.period ? existingIncident.period.replace('P', '') : (matchState?.period || '1'));
+      setIncidentPlayer(existingIncident.scorer || existingIncident.penaltyPlayer || '');
+      setIncidentAssist(existingIncident.assist || '');
+      setIncidentPenaltyReason(existingIncident.penaltyReason || 'Tripping');
+      setIncidentPenaltyMins(existingIncident.penaltyMin || 2);
+      setIncidentGoalType(existingIncident.goalType || 'EV');
+    } else {
+      setEditingIncidentId(null);
+      setIncidentTeam(team);
+      setIncidentType(type);
+      setIncidentMinute(formattedTime);
+      setIncidentPeriod(matchState?.period || '1');
+      const activeLineup = team === 'home' ? homeLineup : awayLineup;
+      setIncidentPlayer(activeLineup[1]?.name || '');
+      setIncidentAssist(activeLineup[2]?.name || '');
+      setIncidentPenaltyReason('Tripping');
+      setIncidentPenaltyMins(2);
+      setIncidentGoalType('EV');
+    }
     setIsIncidentModalOpen(true);
   };
 
-  // Submit Incident Logger
+  // Submit Incident Logger (Add or Edit)
   const handleSubmitIncident = async (e) => {
     e.preventDefault();
-    const periodLabel = `P${matchState?.period || '1'}`;
+    const periodLabel = `P${incidentPeriod || matchState?.period || '1'}`;
     const timeLabel = incidentMinute || formattedTime;
     const teamName = incidentTeam === 'home' ? homeName : awayName;
 
-    if (incidentType === 'goal') {
-      if (incidentTeam === 'home') {
-        scoreboard.incrementHomeScore();
+    try {
+      if (editingIncidentId) {
+        // Edit existing incident
+        const updatedData = {
+          time: timeLabel,
+          period: periodLabel,
+          team: incidentTeam,
+          type: incidentType,
+          ...(incidentType === 'goal' ? {
+            scorer: incidentPlayer || `${teamName} Scorer`,
+            assist: incidentAssist || '',
+            goalType: incidentGoalType,
+            text: `Goal! ${teamName} - ${incidentPlayer}`
+          } : incidentType === 'penalty' ? {
+            penaltyPlayer: incidentPlayer || `${teamName} Player`,
+            penaltyMin: incidentPenaltyMins,
+            penaltyReason: incidentPenaltyReason,
+            text: `${incidentPenaltyMins} Min Penalty (${incidentPenaltyReason}) - ${incidentPlayer}`
+          } : {
+            text: `30-Second Timeout Called by ${teamName}`
+          })
+        };
+
+        if (scoreboard.updateIncident) {
+          await scoreboard.updateIncident(editingIncidentId, updatedData);
+        }
       } else {
-        scoreboard.incrementAwayScore();
-      }
-      scoreboard.blastHorn();
+        // Create new incident
+        if (incidentType === 'goal') {
+          if (incidentTeam === 'home') {
+            scoreboard.incrementHomeScore();
+          } else {
+            scoreboard.incrementAwayScore();
+          }
+          scoreboard.blastHorn();
 
-      const newHomeScore = homeScore + (incidentTeam === 'home' ? 1 : 0);
-      const newAwayScore = awayScore + (incidentTeam === 'away' ? 1 : 0);
+          const newHomeScore = homeScore + (incidentTeam === 'home' ? 1 : 0);
+          const newAwayScore = awayScore + (incidentTeam === 'away' ? 1 : 0);
 
-      if (scoreboard.addIncident) {
-        scoreboard.addIncident({
-          time: timeLabel,
-          period: periodLabel,
-          team: incidentTeam,
-          type: 'goal',
-          scorer: incidentPlayer || `${teamName} Forward`,
-          assist: incidentAssist || '',
-          score: `${newHomeScore} - ${newAwayScore}`,
-          text: `Goal! ${teamName} (${newHomeScore} - ${newAwayScore})`
-        });
+          if (scoreboard.addIncident) {
+            await scoreboard.addIncident({
+              time: timeLabel,
+              period: periodLabel,
+              team: incidentTeam,
+              type: 'goal',
+              scorer: incidentPlayer || `${teamName} Forward`,
+              assist: incidentAssist || '',
+              goalType: incidentGoalType,
+              score: `${newHomeScore} - ${newAwayScore}`,
+              text: `Goal! ${teamName} (${newHomeScore} - ${newAwayScore})`
+            });
+          }
+        } else if (incidentType === 'penalty') {
+          if (scoreboard.addIncident) {
+            await scoreboard.addIncident({
+              time: timeLabel,
+              period: periodLabel,
+              team: incidentTeam,
+              type: 'penalty',
+              penaltyPlayer: incidentPlayer || `${teamName} Player`,
+              penaltyMin: incidentPenaltyMins,
+              penaltyReason: incidentPenaltyReason,
+              text: `${incidentPenaltyMins} Min Penalty (${incidentPenaltyReason}) - ${incidentPlayer}`
+            });
+          }
+          if (scoreboard.setPowerPlay) {
+            scoreboard.setPowerPlay(incidentTeam === 'home' ? 'away' : 'home');
+          }
+        } else if (incidentType === 'timeout') {
+          if (scoreboard.addIncident) {
+            await scoreboard.addIncident({
+              time: timeLabel,
+              period: periodLabel,
+              team: incidentTeam,
+              type: 'timeout',
+              text: `30-Second Timeout Called by ${teamName}`
+            });
+          }
+        }
       }
-    } else if (incidentType === 'penalty') {
-      if (scoreboard.addIncident) {
-        scoreboard.addIncident({
-          time: timeLabel,
-          period: periodLabel,
-          team: incidentTeam,
-          type: 'penalty',
-          penaltyPlayer: incidentPlayer || `${teamName} Player`,
-          penaltyMin: incidentPenaltyMins,
-          penaltyReason: incidentPenaltyReason,
-          text: `${incidentPenaltyMins} Min Penalty (${incidentPenaltyReason}) - ${incidentPlayer}`
-        });
-      }
-      if (scoreboard.setPowerPlay) {
-        scoreboard.setPowerPlay(incidentTeam === 'home' ? 'away' : 'home');
-      }
-    } else if (incidentType === 'timeout') {
-      if (scoreboard.addIncident) {
-        scoreboard.addIncident({
-          time: timeLabel,
-          period: periodLabel,
-          team: incidentTeam,
-          type: 'timeout',
-          text: `30-Second Timeout Called by ${teamName}`
-        });
-      }
+    } catch (err) {
+      console.error('Failed to submit incident:', err);
+    } finally {
+      setIsIncidentModalOpen(false);
+      setEditingIncidentId(null);
     }
+  };
 
-    setIsIncidentModalOpen(false);
+  // Delete an incident from timeline
+  const handleDeleteIncident = async (incidentId, isGoal = false) => {
+    if (!window.confirm('Are you sure you want to delete this incident from the timeline?')) {
+      return;
+    }
+    try {
+      if (scoreboard.deleteIncident) {
+        await scoreboard.deleteIncident(incidentId, false);
+      }
+    } catch (err) {
+      console.error('Failed to delete incident:', err);
+    }
   };
 
   // Quick Preset matchups
@@ -1002,7 +1080,196 @@ export function RemoteView({
             </div>
           </div>
 
-          {/* 5. PERIOD & GAME STATE SWITCHER */}
+          {/* 5. LIVE MATCH TIMELINE & INCIDENTS (ADMIN CONTROL) */}
+          <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-gray-100 gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-gray-900 text-base">Live Match Timeline & Incidents</h3>
+                  <span className="text-xs text-blue-600 font-extrabold uppercase">● Admin Live Setting</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Set live goal scorers, assists, penalties, and timeouts for {homeName} vs {awayName}
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openIncidentLogger('home', 'goal')}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  <span>+ Log Goal Scorer</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openIncidentLogger('home', 'penalty')}
+                  className="px-3 py-1.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  <span>+ Log Penalty</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openIncidentLogger('home', 'timeout')}
+                  className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold border border-gray-200 transition-colors cursor-pointer"
+                >
+                  <span>+ Timeout</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Tabs & Event Count */}
+            <div className="flex items-center justify-between mb-4 text-xs font-semibold">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTimelineFilter('all')}
+                  className={`py-1 transition-colors cursor-pointer ${
+                    timelineFilter === 'all'
+                      ? 'text-gray-900 border-b-2 border-gray-900 font-black'
+                      : 'text-gray-400 hover:text-gray-700'
+                  }`}
+                >
+                  All ({currentEvents.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimelineFilter('goal')}
+                  className={`py-1 transition-colors cursor-pointer ${
+                    timelineFilter === 'goal'
+                      ? 'text-blue-600 border-b-2 border-blue-600 font-black'
+                      : 'text-gray-400 hover:text-gray-700'
+                  }`}
+                >
+                  Goals ({currentEvents.filter(e => e.type === 'goal').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimelineFilter('penalty')}
+                  className={`py-1 transition-colors cursor-pointer ${
+                    timelineFilter === 'penalty'
+                      ? 'text-gray-900 border-b-2 border-gray-900 font-black'
+                      : 'text-gray-400 hover:text-gray-700'
+                  }`}
+                >
+                  Penalties ({currentEvents.filter(e => e.type === 'penalty').length})
+                </button>
+              </div>
+
+              <span className="text-[11px] text-gray-400">
+                Sorted by most recent
+              </span>
+            </div>
+
+            {/* Events List */}
+            {filteredEvents.length === 0 ? (
+              <div className="p-8 bg-gray-50/70 rounded-2xl border border-gray-100 text-center text-xs">
+                <span className="text-gray-400 font-semibold block mb-1">NO TIMELINE INCIDENTS RECORDED YET</span>
+                <p className="text-gray-500 max-w-sm mx-auto mb-3">
+                  Click "+ Log Goal Scorer" or "+ Log Penalty" to set live timeline events for this match.
+                </p>
+                <div className="flex justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openIncidentLogger('home', 'goal')}
+                    className="px-3 py-1.5 bg-blue-50 text-blue-700 font-bold rounded-lg hover:bg-blue-100 cursor-pointer"
+                  >
+                    + Goal for {homeName}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openIncidentLogger('away', 'goal')}
+                    className="px-3 py-1.5 bg-amber-50 text-amber-700 font-bold rounded-lg hover:bg-amber-100 cursor-pointer"
+                  >
+                    + Goal for {awayName}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {filteredEvents.map((evt) => {
+                  const isGoal = evt.type === 'goal';
+                  const isPenalty = evt.type === 'penalty';
+                  const isHome = evt.team === 'home';
+                  const evtTeamName = isHome ? homeName : awayName;
+
+                  return (
+                    <div
+                      key={evt.id}
+                      className="p-3.5 rounded-2xl border border-gray-100 bg-white hover:bg-gray-50/70 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Time & Period */}
+                        <div className="text-center w-14 shrink-0 bg-gray-100 py-1 px-1.5 rounded-xl">
+                          <span className="font-mono text-xs font-bold text-gray-800 block leading-tight">{evt.time || '00:00'}</span>
+                          <span className="text-[10px] uppercase font-bold text-gray-400 block">{evt.period || 'P1'}</span>
+                        </div>
+
+                        {/* Event Details */}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[11px] font-black uppercase tracking-wider ${
+                              isGoal ? (isHome ? 'text-blue-600' : 'text-amber-600') : isPenalty ? 'text-gray-800' : 'text-purple-600'
+                            }`}>
+                              {isGoal ? 'Goal' : isPenalty ? `${evt.penaltyMin || 2} Min Penalty` : 'Timeout'}
+                            </span>
+                            <span className="text-gray-300">•</span>
+                            <span className="text-xs font-bold text-gray-900 truncate">
+                              {isGoal ? evt.scorer : isPenalty ? evt.penaltyPlayer : evtTeamName}
+                            </span>
+                            {evt.score && (
+                              <span className="font-mono text-xs font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                                {evt.score}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-xs text-gray-500 mt-0.5 truncate flex items-center gap-2">
+                            <span className="font-medium text-gray-700">{evtTeamName}</span>
+                            {isGoal && evt.assist && (
+                              <>
+                                <span>•</span>
+                                <span>Assist: <strong className="text-gray-700">{evt.assist}</strong></span>
+                              </>
+                            )}
+                            {isPenalty && (
+                              <>
+                                <span>•</span>
+                                <span>Infraction: <strong className="text-gray-700">{evt.penaltyReason || 'Tripping'}</strong></span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Edit and Delete Actions */}
+                      <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => openIncidentLogger(evt.team, evt.type, evt)}
+                          className="px-2.5 py-1 text-xs font-semibold text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          title="Edit this incident"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteIncident(evt.id, isGoal)}
+                          className="px-2.5 py-1 text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          title="Delete this incident"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 6. PERIOD & GAME STATE SWITCHER */}
           <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
             <h3 className="font-bold text-gray-900 text-base mb-3">
               Period & Game State Selection
@@ -1788,15 +2055,19 @@ export function RemoteView({
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-100">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
-                  Log Match Incident
+                  {editingIncidentId ? 'Edit Match Incident' : 'Log Match Incident'}
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Recording to live timeline for <strong className="text-gray-900">{homeName} vs {awayName}</strong> ({matchState?.venue || 'Arena'})
+                  {editingIncidentId ? 'Modifying recorded incident on live timeline for ' : 'Recording to live timeline for '}
+                  <strong className="text-gray-900">{homeName} vs {awayName}</strong> ({matchState?.venue || 'Arena'})
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsIncidentModalOpen(false)}
+                onClick={() => {
+                  setIsIncidentModalOpen(false);
+                  setEditingIncidentId(null);
+                }}
                 className="text-gray-400 hover:text-gray-700 text-sm font-bold p-1 rounded-lg hover:bg-gray-100 cursor-pointer"
               >
                 ✕
@@ -1814,7 +2085,7 @@ export function RemoteView({
                     <button
                       type="button"
                       onClick={() => setIncidentTeam('home')}
-                      className={`py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                      className={`py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
                         incidentTeam === 'home' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-600'
                       }`}
                     >
@@ -1823,7 +2094,7 @@ export function RemoteView({
                     <button
                       type="button"
                       onClick={() => setIncidentTeam('away')}
-                      className={`py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                      className={`py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
                         incidentTeam === 'away' ? 'bg-white text-amber-700 shadow-xs' : 'text-gray-600'
                       }`}
                     >
@@ -1841,10 +2112,54 @@ export function RemoteView({
                     onChange={(e) => setIncidentType(e.target.value)}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
                   >
-                    <option value="goal">Goal (+1 Score)</option>
-                    <option value="penalty">2 Min Minor Penalty</option>
-                    <option value="timeout">30s Timeout</option>
+                    <option value="goal">Goal {editingIncidentId ? '' : '(+1 Score)'}</option>
+                    <option value="penalty">Penalty (PIM)</option>
+                    <option value="timeout">30s Official Timeout</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Period & Game Clock Stamp */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
+                    Game Period
+                  </label>
+                  <select
+                    value={incidentPeriod}
+                    onChange={(e) => setIncidentPeriod(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
+                  >
+                    <option value="1">1st Period (P1)</option>
+                    <option value="2">2nd Period (P2)</option>
+                    <option value="3">3rd Period (P3)</option>
+                    <option value="OT">Overtime (OT)</option>
+                    <option value="SO">Shootout (SO)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase">
+                      Clock Time
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIncidentMinute(formattedTime)}
+                      className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer"
+                      title="Insert current countdown clock time"
+                    >
+                      Now ({formattedTime})
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={incidentMinute}
+                    onChange={(e) => setIncidentMinute(e.target.value)}
+                    placeholder="e.g. 14:22"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-bold outline-none"
+                    required
+                  />
                 </div>
               </div>
 
@@ -1855,7 +2170,11 @@ export function RemoteView({
                 </label>
                 <select
                   value={incidentPlayer}
-                  onChange={(e) => setIncidentPlayer(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value !== 'custom') {
+                      setIncidentPlayer(e.target.value);
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer mb-1.5"
                 >
                   {(incidentTeam === 'home' ? homeLineup : awayLineup).map(p => (
@@ -1863,7 +2182,7 @@ export function RemoteView({
                       #{p.number} {p.name} ({p.pos})
                     </option>
                   ))}
-                  <option value="custom">-- Custom Name --</option>
+                  <option value="custom">-- Custom Name (Type Below) --</option>
                 </select>
 
                 <input
@@ -1876,19 +2195,37 @@ export function RemoteView({
                 />
               </div>
 
-              {/* Assist if Goal */}
+              {/* Assist & Goal Type if Goal */}
               {incidentType === 'goal' && (
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
-                    Primary Assist (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={incidentAssist}
-                    onChange={(e) => setIncidentAssist(e.target.value)}
-                    placeholder="e.g. Bedard C. or Kane P."
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
+                      Primary Assist (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={incidentAssist}
+                      onChange={(e) => setIncidentAssist(e.target.value)}
+                      placeholder="e.g. Bedard C. or Kane P."
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
+                      Goal Strength
+                    </label>
+                    <select
+                      value={incidentGoalType}
+                      onChange={(e) => setIncidentGoalType(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
+                    >
+                      <option value="EV">Even Strength (EV)</option>
+                      <option value="PPG">Power Play Goal (PPG)</option>
+                      <option value="SHG">Short Handed Goal (SHG)</option>
+                      <option value="ENG">Empty Net Goal (ENG)</option>
+                    </select>
+                  </div>
                 </div>
               )}
 
@@ -1911,6 +2248,11 @@ export function RemoteView({
                       <option value="High-Sticking">High-Sticking</option>
                       <option value="Interference">Interference</option>
                       <option value="Cross-Checking">Cross-Checking</option>
+                      <option value="Boarding">Boarding</option>
+                      <option value="Holding">Holding</option>
+                      <option value="Misconduct">Misconduct</option>
+                      <option value="Delay of Game">Delay of Game</option>
+                      <option value="Spearing">Spearing</option>
                     </select>
                   </div>
 
@@ -1926,30 +2268,20 @@ export function RemoteView({
                       <option value={2}>2 Min Minor</option>
                       <option value={4}>4 Min Double Minor</option>
                       <option value={5}>5 Min Major</option>
+                      <option value={10}>10 Min Misconduct</option>
                     </select>
                   </div>
                 </div>
               )}
 
-              {/* Game Clock Stamp */}
-              <div>
-                <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
-                  Incident Time (Clock)
-                </label>
-                <input
-                  type="text"
-                  value={incidentMinute}
-                  onChange={(e) => setIncidentMinute(e.target.value)}
-                  placeholder="e.g. 14:22"
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-bold outline-none"
-                />
-              </div>
-
               {/* Actions */}
               <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsIncidentModalOpen(false)}
+                  onClick={() => {
+                    setIsIncidentModalOpen(false);
+                    setEditingIncidentId(null);
+                  }}
                   className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 cursor-pointer"
                 >
                   <span>Cancel</span>
@@ -1958,7 +2290,7 @@ export function RemoteView({
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
                 >
-                  <span>Record & Broadcast</span>
+                  <span>{editingIncidentId ? 'Save Changes' : 'Record & Broadcast'}</span>
                 </button>
               </div>
             </form>

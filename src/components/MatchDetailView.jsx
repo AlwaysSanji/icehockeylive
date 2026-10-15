@@ -84,7 +84,13 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
       return matchState.events;
     }
 
-    // If no explicit events array, generate realistic goal timeline based on the score and period breakdown
+    // For live matches or when events are an explicit array, strictly display what admin has set
+    const isLiveOrUpcoming = matchState.period !== 'FT' || matchState.status === 'Live' || matchState.status === 'Upcoming';
+    if (isLiveOrUpcoming || Array.isArray(matchState.events)) {
+      return [];
+    }
+
+    // If no explicit events array and finished fixture, generate realistic goal timeline based on score
     const generated = [];
     let evtId = 1;
 
@@ -396,7 +402,9 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
                 homeName={homeName} 
                 awayName={awayName} 
                 isRunning={isRunning} 
-                formattedTime={formattedTime} 
+                formattedTime={formattedTime}
+                isLoggedIn={isLoggedIn}
+                onOpenRemote={onOpenRemote}
               />
             )}
 
