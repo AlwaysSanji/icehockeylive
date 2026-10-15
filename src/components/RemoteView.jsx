@@ -501,28 +501,7 @@ export function RemoteView({
     }
   };
 
-  // Quick Preset matchups
-  const applyPresetMatchup = (homeKey, awayKey) => {
-    const homeTeam = NHL_TEAMS[homeKey];
-    const awayTeam = NHL_TEAMS[awayKey];
-    if (homeTeam && awayTeam) {
-      scoreboard.updateTeamDetails({
-        home: {
-          id: homeKey,
-          name: homeTeam.name,
-          score: 0,
-          shots: 0
-        },
-        away: {
-          id: awayKey,
-          name: awayTeam.name,
-          score: 0,
-          shots: 0
-        },
-        venue: homeTeam.stadium
-      });
-    }
-  };
+
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -1493,55 +1472,6 @@ export function RemoteView({
             </div>
           </div>
 
-          {/* 7. QUICK MATCH PRESETS (Live matches only) */}
-          {!isCompleted && (
-            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-bold text-gray-900 text-base">Quick Arena Presets</h3>
-                  <p className="text-xs text-gray-400">Instantly switch team matchups and home venues</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <button
-                  type="button"
-                  onClick={() => applyPresetMatchup('blackhawks', 'penguins')}
-                  className="p-3 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/30 text-left transition-all cursor-pointer"
-                >
-                  <div className="text-xs font-bold text-gray-900">Blackhawks vs Penguins</div>
-                  <div className="text-[11px] text-gray-500">United Center</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => applyPresetMatchup('jets', 'wild')}
-                  className="p-3 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/30 text-left transition-all cursor-pointer"
-                >
-                  <div className="text-xs font-bold text-gray-900">Jets vs Wild</div>
-                  <div className="text-[11px] text-gray-500">Canada Life Centre</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => applyPresetMatchup('stars', 'avalanche')}
-                  className="p-3 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/30 text-left transition-all cursor-pointer"
-                >
-                  <div className="text-xs font-bold text-gray-900">Stars vs Avalanche</div>
-                  <div className="text-[11px] text-gray-500">American Airlines Center</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => applyPresetMatchup('predators', 'knights')}
-                  className="p-3 rounded-2xl border border-gray-200 hover:border-yellow-500 hover:bg-yellow-50/30 text-left transition-all cursor-pointer"
-                >
-                  <div className="text-xs font-bold text-gray-900">Predators vs Golden Knights</div>
-                  <div className="text-[11px] text-gray-500">Bridgestone Arena</div>
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
