@@ -77,16 +77,16 @@ export function Header({
               <div className="hidden lg:flex items-center px-2.5 py-1 text-xs text-gray-600 font-medium bg-gray-50 rounded-lg border border-gray-100">
                 <span className="truncate max-w-[120px]">{currentUser.name}</span>
                 {isAdmin ? (
-                  <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-extrabold uppercase rounded-md">
-                    Admin
+                  <span className="ml-1.5 text-[10px] font-extrabold text-blue-600 uppercase">
+                    • Admin
                   </span>
                 ) : canAccessRemote ? (
-                  <span className="ml-1.5 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-extrabold uppercase rounded-md">
-                    Operator
+                  <span className="ml-1.5 text-[10px] font-extrabold text-emerald-600 uppercase">
+                    • Operator
                   </span>
                 ) : (
-                  <span className="ml-1.5 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-bold uppercase rounded-md border border-gray-200">
-                    Spectator
+                  <span className="ml-1.5 text-[10px] font-bold text-gray-400 uppercase">
+                    • Spectator
                   </span>
                 )}
               </div>

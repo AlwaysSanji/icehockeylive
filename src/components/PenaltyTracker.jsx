@@ -31,8 +31,8 @@ export function PenaltyTracker({
                 Special Teams & Penalty Tracker
               </span>
               {powerPlay && (
-                <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white font-black text-[10px] uppercase tracking-wider animate-pulse">
-                  {powerPlay === 'home' ? `${homeName} Power Play` : `${awayName} Power Play`}
+                <span className="font-black text-xs uppercase tracking-wider text-amber-600">
+                  • {powerPlay === 'home' ? `${homeName} Power Play` : `${awayName} Power Play`}
                 </span>
               )}
             </div>
@@ -72,7 +72,6 @@ export function PenaltyTracker({
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isScored ? 'bg-emerald-500 ring-2 ring-emerald-200' : 'bg-rose-500 ring-2 ring-rose-200'}`} />
                   <div className="min-w-0">
                     <div className="font-bold text-gray-900 truncate flex items-center gap-1.5">
                       <span className="text-gray-500 font-semibold">{shootingTeamName}: </span>
@@ -86,10 +85,8 @@ export function PenaltyTracker({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className={`px-2.5 py-1 rounded-lg font-bold text-xs uppercase tracking-wider ${
-                    isScored 
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
-                      : 'bg-rose-100 text-rose-800 border border-rose-200'
+                  <span className={`font-bold text-xs uppercase tracking-wider ${
+                    isScored ? 'text-emerald-700' : 'text-rose-700'
                   }`}>
                     {isScored ? 'Goal Scored' : 'Missed / Saved'}
                   </span>
@@ -122,7 +119,6 @@ export function PenaltyTracker({
               className="bg-white/90 backdrop-blur-xs rounded-2xl p-3 border border-amber-200/80 flex items-center justify-between gap-3 text-xs"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${isHome ? 'bg-blue-600' : 'bg-amber-600'}`} />
                 <div className="min-w-0">
                   <div className="font-bold text-gray-900 truncate">
                     <span className="text-gray-500 font-semibold">{penalizedTeamName}: </span>
@@ -136,7 +132,7 @@ export function PenaltyTracker({
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <span className="px-2 py-1 rounded-lg bg-red-50 text-red-700 border border-red-200 font-mono font-bold text-xs">
+                <span className="text-rose-700 font-mono font-bold text-xs">
                   {p.minutes || p.penaltyMinutes || 2} Min PIM
                 </span>
                 {isOperator && onCancelPenalty && (

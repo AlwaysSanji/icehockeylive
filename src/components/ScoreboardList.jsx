@@ -136,17 +136,16 @@ export function ScoreboardList({
                         {/* Status Badge & Venue */}
                         <div className="flex items-center justify-between sm:justify-start gap-3 border-b sm:border-b-0 pb-2 sm:pb-0 border-gray-100">
                           {category === 'live' ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-50 text-red-700 border border-red-200 text-xs font-black uppercase tracking-wider">
-                              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+                            <span className="text-xs font-black uppercase tracking-wider text-red-600">
                               {isCurrentLiveSync ? liveStatusText : `Live P${m.period || '1'}`}
                             </span>
                           ) : category === 'upcoming' ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold uppercase tracking-wider">
+                            <span className="text-xs font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5 text-amber-600" />
                               {m.dateTime || m.date || 'Scheduled'}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold uppercase tracking-wider">
+                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                               Final (FT)
                             </span>

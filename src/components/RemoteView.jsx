@@ -1123,8 +1123,8 @@ export function RemoteView({
         <div>
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-gray-900 text-base">Match Timeline & Incidents</h3>
-            <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase">
-              ● Live Timeline Setting
+            <span className="text-[11px] font-bold text-blue-600 uppercase">
+              • Live Setting
             </span>
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
@@ -1331,16 +1331,16 @@ export function RemoteView({
                                 : evtTeamName}
                       </span>
                       {isPenaltyScored && evt.score ? (
-                        <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                          {evt.score}
+                        <span className="font-mono text-xs font-bold text-emerald-700">
+                          ({evt.score})
                         </span>
                       ) : isPenaltyMissed ? (
-                        <span className="font-mono text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
-                          No Goal
+                        <span className="font-mono text-[11px] font-bold text-rose-600">
+                          (No Goal)
                         </span>
                       ) : evt.score ? (
-                        <span className="font-mono text-xs font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
-                          {evt.score}
+                        <span className="font-mono text-xs font-bold text-gray-500">
+                          ({evt.score})
                         </span>
                       ) : null}
                     </div>
@@ -1437,10 +1437,7 @@ export function RemoteView({
                   <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs border border-emerald-200">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   </div>
-                  <h2 className="text-xl font-black text-gray-900 tracking-tight">Completed Matches</h2>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    {finishedMatches.length}
-                  </span>
+                  <h2 className="text-xl font-black text-gray-900 tracking-tight">Completed Matches ({finishedMatches.length})</h2>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
                   Official final scores, box scores, and archival records. Select any match to edit scores, update timeline events, or reopen as live.
@@ -1493,7 +1490,7 @@ export function RemoteView({
                     >
                       <div className="flex items-center justify-between gap-3 pb-3 mb-4 border-b border-gray-100 text-xs">
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700">
                             FINAL • FT
                           </span>
                           <span className="text-gray-500 font-medium truncate">
@@ -1642,10 +1639,7 @@ export function RemoteView({
                   <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-xs border border-amber-200">
                     <Calendar className="w-4 h-4 text-amber-600" />
                   </div>
-                  <h2 className="text-xl font-black text-gray-900 tracking-tight">Upcoming Fixtures</h2>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                    {upcomingMatches.length}
-                  </span>
+                  <h2 className="text-xl font-black text-gray-900 tracking-tight">Upcoming Fixtures ({upcomingMatches.length})</h2>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
                   Scheduled matches, arenas, and start times. Drop puck to launch live scoring or edit fixture details.
@@ -1698,7 +1692,7 @@ export function RemoteView({
                     >
                       <div className="flex items-center justify-between gap-3 pb-3 mb-4 border-b border-gray-100 text-xs">
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-amber-600">
                             SCHEDULED
                           </span>
                           <span className="text-gray-500 font-medium truncate">
@@ -1956,11 +1950,7 @@ export function RemoteView({
             <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse" />
-                  <h2 className="text-xl font-black text-gray-900 tracking-tight">Active Live Matches</h2>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200">
-                    {liveMatches.length} Active
-                  </span>
+                  <h2 className="text-xl font-black text-gray-900 tracking-tight">Active Live Matches ({liveMatches.length})</h2>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
                   Multiple live games in progress. Select a match to open its live operator controls.
@@ -1992,8 +1982,7 @@ export function RemoteView({
                   >
                     <div className="flex items-center justify-between gap-3 pb-3 mb-4 border-b border-gray-100 text-xs">
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+                        <span className="text-[11px] font-black uppercase tracking-wider text-red-600">
                           LIVE • P{m.period || '1'}
                         </span>
                         <span className="text-gray-500 font-medium truncate">
@@ -2101,8 +2090,7 @@ export function RemoteView({
             <div className="bg-gradient-to-r from-gray-900 via-slate-900 to-gray-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-gray-800">
               <div className="flex items-center justify-between gap-3 pb-3 mb-3 border-b border-gray-800/80 text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                  <span className="text-[11px] font-black uppercase tracking-wider text-red-400">
                     PERIOD {matchState?.period || '1'}
                   </span>
                   <span className="text-gray-400 font-medium">
@@ -2176,8 +2164,8 @@ export function RemoteView({
               >
                 <span>Admin Master Controls</span>
                 {isAdmin && (
-                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-extrabold rounded-md">
-                    ADMIN
+                  <span className="text-blue-600 text-[10px] font-extrabold">
+                    • ADMIN
                   </span>
                 )}
               </button>
@@ -2842,7 +2830,6 @@ export function RemoteView({
                     : 'text-gray-600 hover:text-red-700'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${matchFilter === 'live' ? 'bg-white' : 'bg-red-500'} animate-pulse`} />
                 Live ({liveMatchesCount})
               </button>
               <button
@@ -2896,21 +2883,20 @@ export function RemoteView({
                             Match {originalIndex >= 0 ? originalIndex + 1 : idx + 1}:
                           </span>
 
-                          {/* Status Badge */}
+                          {/* Status */}
                           {category === 'live' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 text-red-700 border border-red-200 text-[10px] font-black uppercase tracking-wider">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+                            <span className="text-[10px] font-black uppercase tracking-wider text-red-600">
                               Live P{m.period || '1'}
                             </span>
                           )}
                           {category === 'upcoming' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold uppercase tracking-wider">
-                              ⏰ Upcoming
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                              Upcoming
                             </span>
                           )}
                           {category === 'finished' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider">
-                              🏁 Finished (FT)
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                              Finished (FT)
                             </span>
                           )}
 

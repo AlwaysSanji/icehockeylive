@@ -77,7 +77,7 @@ export function BoxScoreTable({ matchState }) {
           </h4>
           <p className="text-[11px] text-gray-400">Official scoring summary and shots on goal</p>
         </div>
-        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-gray-100 text-gray-600 font-mono">
+        <span className="text-xs font-bold uppercase text-gray-400 font-mono">
           {matchState.period === 'FT' ? 'Final Score' : `Period ${matchState.period || '1'}`}
         </span>
       </div>

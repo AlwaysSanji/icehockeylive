@@ -34,55 +34,39 @@ export function UnifiedNavbar({
         <button
           type="button"
           onClick={() => onNavTabChange('live')}
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeNavTab === 'live'
               ? 'bg-red-600 text-white shadow-xs'
               : 'text-gray-700 hover:text-red-700 hover:bg-white/60'
           }`}
         >
-          <span className={`w-2 h-2 rounded-full ${activeNavTab === 'live' ? 'bg-white' : 'bg-red-500'} animate-pulse`} />
-          <span>Live</span>
-          <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono ${
-            activeNavTab === 'live' ? 'bg-white/20 text-white font-black' : 'bg-gray-200 text-gray-700 font-bold'
-          }`}>
-            {liveCount}
-          </span>
+          <span>Live ({liveCount})</span>
         </button>
 
         <button
           type="button"
           onClick={() => onNavTabChange('upcoming')}
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeNavTab === 'upcoming'
               ? 'bg-amber-500 text-white shadow-xs'
               : 'text-gray-700 hover:text-amber-700 hover:bg-white/60'
           }`}
         >
           <Calendar className="w-3.5 h-3.5" />
-          <span>Upcoming</span>
-          <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono ${
-            activeNavTab === 'upcoming' ? 'bg-white/20 text-white font-black' : 'bg-gray-200 text-gray-700 font-bold'
-          }`}>
-            {upcomingCount}
-          </span>
+          <span>Upcoming ({upcomingCount})</span>
         </button>
 
         <button
           type="button"
           onClick={() => onNavTabChange('finished')}
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeNavTab === 'finished'
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'text-gray-700 hover:text-emerald-700 hover:bg-white/60'
           }`}
         >
           <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>Finished</span>
-          <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono ${
-            activeNavTab === 'finished' ? 'bg-white/20 text-white font-black' : 'bg-gray-200 text-gray-700 font-bold'
-          }`}>
-            {finishedCount}
-          </span>
+          <span>Finished ({finishedCount})</span>
         </button>
       </div>
 

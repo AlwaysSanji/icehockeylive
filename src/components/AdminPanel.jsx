@@ -1129,13 +1129,13 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
                 </p>
               </div>
 
-              {/* Quick Summary Pill Badges */}
-              <div className="flex items-center gap-2 text-xs">
-                <span className="px-2.5 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg border border-blue-100">
+              {/* Quick Summary Counts (Clean text) */}
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-blue-700 font-bold">
                   {registeredUsers.filter(u => u.canControlRemote).length} Operators
                 </span>
-                <span className="px-2.5 py-1 bg-gray-100 text-gray-600 font-medium rounded-lg border border-gray-200">
-                  {registeredUsers.filter(u => !u.canControlRemote).length} Spectators
+                <span className="text-gray-500 font-medium">
+                  • {registeredUsers.filter(u => !u.canControlRemote).length} Spectators
                 </span>
               </div>
             </div>
@@ -1163,16 +1163,16 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
                           <span className="text-xs font-bold text-gray-900">{user.name}</span>
                           <span className="text-[11px] font-mono text-gray-400">@{user.username}</span>
                           {isMasterAdmin ? (
-                            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-black rounded-md">
-                              ADMIN
+                            <span className="text-blue-600 text-[10px] font-black uppercase">
+                              • ADMIN
                             </span>
                           ) : hasRemote ? (
-                            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-md">
-                              OPERATOR
+                            <span className="text-emerald-600 text-[10px] font-black uppercase">
+                              • OPERATOR
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-medium rounded-md">
-                              SPECTATOR
+                            <span className="text-gray-400 text-[10px] font-bold uppercase">
+                              • SPECTATOR
                             </span>
                           )}
                         </div>

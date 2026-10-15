@@ -141,9 +141,6 @@ export function SearchModal({
                       className="p-3 rounded-2xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/40 transition-all cursor-pointer flex items-center justify-between gap-3 group"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${
-                          isLive ? 'bg-red-500 animate-pulse' : isFinished ? 'bg-emerald-500' : 'bg-amber-400'
-                        }`} />
                         <div className="min-w-0">
                           <div className="font-bold text-gray-900 text-xs sm:text-sm truncate">
                             {m.home?.name || 'Home'} 
@@ -199,8 +196,8 @@ export function SearchModal({
                         {team.stadium || team.city || 'Team'}
                       </div>
                     </div>
-                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 font-mono text-[10px] font-bold rounded-md">
-                      {team.shortCode || team.id.slice(0, 3).toUpperCase()}
+                    <span className="text-gray-400 font-mono text-xs font-bold">
+                      ({team.shortCode || team.id.slice(0, 3).toUpperCase()})
                     </span>
                   </div>
                 ))}
@@ -239,8 +236,8 @@ export function SearchModal({
                       </div>
                     </div>
                     {player.captain && (
-                      <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded-md">
-                        {player.captain}
+                      <span className="text-amber-700 text-[10px] font-black font-mono">
+                        ({player.captain})
                       </span>
                     )}
                   </div>

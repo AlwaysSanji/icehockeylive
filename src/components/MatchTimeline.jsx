@@ -540,15 +540,15 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                           {/* Right: Team & Score Change */}
                           <div className="text-right shrink-0">
                             {isPenaltyScored && evt.score ? (
-                              <div className="font-mono font-black text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                              <div className="font-mono font-black text-sm text-emerald-700">
                                 {evt.score}
                               </div>
                             ) : isPenaltyMissed ? (
-                              <div className="font-mono font-bold text-xs text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg">
+                              <div className="font-mono font-bold text-xs text-rose-600">
                                 No Goal
                               </div>
                             ) : isGoal && evt.score ? (
-                              <div className="font-mono font-black text-sm text-gray-900 bg-gray-100 px-2.5 py-1 rounded-lg">
+                              <div className="font-mono font-black text-sm text-gray-900">
                                 {evt.score}
                               </div>
                             ) : null}

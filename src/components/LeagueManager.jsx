@@ -288,11 +288,6 @@ export function LeagueManager({
         >
           <Trophy className="w-4 h-4" />
           <span>Standings</span>
-          <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-            activeSubTab === 'standings' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'
-          }`}>
-            PTS Table
-          </span>
         </button>
 
         <button
@@ -305,12 +300,7 @@ export function LeagueManager({
           }`}
         >
           <Shield className="w-4 h-4" />
-          <span>Teams Field</span>
-          <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-            activeSubTab === 'teams' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'
-          }`}>
-            {teams.length}
-          </span>
+          <span>Teams ({teams.length})</span>
         </button>
 
         <button
@@ -323,12 +313,7 @@ export function LeagueManager({
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>Players Field</span>
-          <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-            activeSubTab === 'players' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'
-          }`}>
-            {players.length}
-          </span>
+          <span>Players ({players.length})</span>
         </button>
       </div>
 
@@ -415,8 +400,8 @@ export function LeagueManager({
                             </span>
                           </div>
                           {team.isOverridden && (
-                            <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-bold rounded uppercase shrink-0">
-                              Adjusted
+                            <span className="text-amber-700 text-[10px] font-bold uppercase shrink-0">
+                              • Adjusted
                             </span>
                           )}
                         </td>
@@ -563,8 +548,8 @@ export function LeagueManager({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h4 className="font-extrabold text-gray-900 text-sm truncate">{team.name}</h4>
-                      <span className="px-1.5 py-0.2 bg-gray-100 text-gray-700 text-[10px] font-mono font-bold rounded-md">
-                        {team.shortCode || team.id.slice(0, 3).toUpperCase()}
+                      <span className="text-gray-400 text-xs font-mono font-bold">
+                        ({team.shortCode || team.id.slice(0, 3).toUpperCase()})
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5 truncate">{team.stadium || 'Home Arena'}</p>
@@ -760,8 +745,8 @@ export function LeagueManager({
                     <div className="flex items-center gap-1.5">
                       <span className="font-extrabold text-gray-900 text-xs truncate">{player.name}</span>
                       {player.captain && (
-                        <span className="px-1 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-black rounded">
-                          {player.captain}
+                        <span className="text-amber-700 text-[10px] font-black font-mono">
+                          ({player.captain})
                         </span>
                       )}
                     </div>
