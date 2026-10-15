@@ -12,7 +12,10 @@ import {
   CheckCircle2,
   Trash2,
   Radio,
-  Sparkles
+  Sparkles,
+  ArrowLeft,
+  Edit3,
+  ArrowRight
 } from 'lucide-react';
 import { useGameClock } from '../hooks/useGameClock';
 import { NHL_TEAMS, getTeamLineup, suggestTeamLineup, generateTeamCrestSvg } from '../constants/hockeyData';
@@ -116,14 +119,32 @@ export function RemoteView({
     return getMatchCategory(matchState) || 'live';
   });
 
+  // Track if a specific match is currently being edited in depth, or null (showing the category list)
+  const [editingMatchId, setEditingMatchId] = useState(null);
+
+  const liveMatches = useMemo(() => matches.filter(m => getMatchCategory(m) === 'live'), [matches]);
+  const upcomingMatches = useMemo(() => matches.filter(m => getMatchCategory(m) === 'upcoming'), [matches]);
+  const finishedMatches = useMemo(() => matches.filter(m => getMatchCategory(m) === 'finished'), [matches]);
+
+  const liveMatchesCount = liveMatches.length;
+  const upcomingMatchesCount = upcomingMatches.length;
+  const finishedMatchesCount = finishedMatches.length;
+
   const handleNavTabChange = (newTab) => {
     setRemoteNavTab(newTab);
-    if (newTab !== 'league') {
-      const catMatches = matches.filter(m => getMatchCategory(m) === newTab);
-      if (catMatches.length > 0 && getMatchCategory(matchState) !== newTab) {
-        if (onSelectMatch) onSelectMatch(catMatches[0].id);
-      }
+    setEditingMatchId(null);
+  };
+
+  const handleReopenMatch = async (matchId) => {
+    const targetId = matchId || matchState?.id;
+    if (targetId && onSelectMatch && targetId !== matchState?.id) {
+      await onSelectMatch(targetId);
     }
+    if (scoreboard?.setPeriod) {
+      await scoreboard.setPeriod('3');
+    }
+    setRemoteNavTab('live');
+    setEditingMatchId(targetId);
   };
 
   const handleStartUpcomingMatch = async (matchId) => {
@@ -141,16 +162,16 @@ export function RemoteView({
       scoreboard.startClock();
     }
     setRemoteNavTab('live');
+    setEditingMatchId(targetId);
   };
-
-  const liveMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'live').length, [matches]);
-  const upcomingMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'upcoming').length, [matches]);
-  const finishedMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'finished').length, [matches]);
 
   const currentCategoryMatches = useMemo(() => {
     if (remoteNavTab === 'league') return [];
-    return matches.filter(m => getMatchCategory(m) === remoteNavTab);
-  }, [matches, remoteNavTab]);
+    if (remoteNavTab === 'live') return liveMatches;
+    if (remoteNavTab === 'upcoming') return upcomingMatches;
+    if (remoteNavTab === 'finished') return finishedMatches;
+    return matches;
+  }, [remoteNavTab, liveMatches, upcomingMatches, finishedMatches, matches]);
 
   // Lineups for incident logger
   const homeLineup = useMemo(() => getTeamLineup(homeTeamId, homeName), [homeTeamId, homeName]);
@@ -220,6 +241,42 @@ export function RemoteView({
   const [shotPlayer, setShotPlayer] = useState('');
   const [shotMinute, setShotMinute] = useState('');
   const [shotPeriod, setShotPeriod] = useState('1');
+
+  // Upcoming Fixture Editor State
+  const [editVenue, setEditVenue] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [editReferee, setEditReferee] = useState('');
+  const [isSavingFixture, setIsSavingFixture] = useState(false);
+
+  useEffect(() => {
+    if (editingMatchId && matchState?.id === editingMatchId) {
+      setEditVenue(matchState?.venue || 'United Center');
+      setEditDate(matchState?.date || 'Wed, Oct 14, 2026');
+      setEditTime(matchState?.dateTime || matchState?.time || '19:00');
+      setEditReferee(matchState?.referee || 'Furlatt E.');
+    }
+  }, [editingMatchId, matchState]);
+
+  const handleSaveFixtureDetails = async (e) => {
+    if (e) e.preventDefault();
+    setIsSavingFixture(true);
+    try {
+      if (scoreboard.updateSchedule) {
+        await scoreboard.updateSchedule({
+          venue: editVenue,
+          date: editDate,
+          dateTime: editTime,
+          time: editTime,
+          referee: editReferee
+        });
+      }
+    } catch (err) {
+      console.error('Failed to update fixture details:', err);
+    } finally {
+      setIsSavingFixture(false);
+    }
+  };
 
   // Spacebar keyboard shortcut for clock start/stop
   useEffect(() => {
@@ -594,8 +651,638 @@ export function RemoteView({
       console.error('Failed to delete incident:', err);
     }
   };
+  // --- MODULAR SUB-BLOCKS FOR OPERATOR & FINISHED CONSOLES ---
 
+  // 1. Clock Controls (Live matches)
+  const renderClockControls = () => (
+    <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
+      <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <Clock className="w-5 h-5 text-gray-700" />
+          <div>
+            <h3 className="font-bold text-gray-900 text-base">Game Clock Control</h3>
+            <p className="text-[11px] text-gray-400">{homeName} vs {awayName}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-semibold text-gray-400 hidden sm:inline">
+            Shortcut: <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-gray-600 font-mono text-[10px]">Space</kbd> Start/Pause
+          </span>
+          <span className={`text-xs font-bold tracking-wide ${
+            isRunning ? 'text-emerald-600 font-mono' : 'text-gray-400'
+          }`}>
+            {isRunning ? 'COUNTING DOWN' : 'PAUSED'}
+          </span>
+        </div>
+      </div>
 
+      {/* Big Clock Display */}
+      <div className="text-center py-5 bg-gradient-to-b from-gray-900 to-slate-900 text-white rounded-2xl border border-gray-800 mb-6 shadow-inner">
+        <div className="text-6xl sm:text-7xl font-mono font-black tracking-tight text-white drop-shadow-md">
+          {formattedTime}
+        </div>
+        <div className="text-xs font-semibold text-gray-400 mt-2 uppercase tracking-wider flex items-center justify-center gap-2">
+          <span>Period {matchState?.period || '1'}</span>
+          <span>•</span>
+          <span className={isRunning ? 'text-emerald-400 font-bold' : 'text-gray-400'}>
+            {isRunning ? 'Live Game Action' : 'Clock Stopped'}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 pt-3 border-t border-gray-800/80 px-4">
+          <span className="text-[11px] text-gray-400 font-semibold mr-1">Period:</span>
+          {['1', '2', '3', 'OT', 'SO', 'FT'].map((pKey) => {
+            const isSelected = String(matchState?.period) === pKey;
+            const label = pKey === 'FT' ? 'End Game (FT)' : pKey === 'OT' ? 'Overtime' : pKey === 'SO' ? 'SO' : `P${pKey}`;
+            return (
+              <button
+                key={pKey}
+                type="button"
+                onClick={() => scoreboard.setPeriod(pKey)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-gray-800/80 hover:bg-gray-700 text-gray-300'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Action Buttons: Start/Pause & Presets */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        {isRunning ? (
+          <button
+            type="button"
+            onClick={() => scoreboard.pauseClock(remainingSeconds)}
+            className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-4 px-6 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-base shadow-md shadow-amber-500/20 transition-all active:scale-98 cursor-pointer"
+          >
+            <Pause className="w-5 h-5 fill-current" />
+            <span>Pause Clock</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={scoreboard.startClock}
+            className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-base shadow-md shadow-emerald-600/20 transition-all active:scale-98 cursor-pointer"
+          >
+            <Play className="w-5 h-5 fill-current" />
+            <span>Start Clock</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => scoreboard.resetClock(1200)}
+          className="flex items-center justify-center gap-1.5 py-4 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-2xl font-bold text-xs transition-all active:scale-98 cursor-pointer"
+          title="Reset to 20:00 regulation period"
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span>20:00 (Period)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => scoreboard.resetClock(300)}
+          className="flex items-center justify-center gap-1.5 py-4 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-2xl font-bold text-xs transition-all active:scale-98 cursor-pointer"
+          title="Reset to 5:00 Overtime"
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span>5:00 (Overtime)</span>
+        </button>
+      </div>
+
+      {/* Period Quick Presets & Fine Tuning */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100 text-xs font-semibold text-gray-600">
+        <div className="flex items-center gap-1.5">
+          <span className="text-gray-400 font-medium">Presets:</span>
+          <button
+            type="button"
+            onClick={() => scoreboard.resetClock(900)}
+            className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
+          >
+            15:00 Int.
+          </button>
+          <button
+            type="button"
+            onClick={() => scoreboard.resetClock(120)}
+            className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
+          >
+            2:00 Minor
+          </button>
+          <button
+            type="button"
+            onClick={() => scoreboard.resetClock(60)}
+            className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
+          >
+            1:00 Final
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span className="text-gray-400 font-medium">Adjust:</span>
+          <button
+            type="button"
+            onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 60)}
+            className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+          >
+            +1m
+          </button>
+          <button
+            type="button"
+            onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -60)}
+            className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+          >
+            -1m
+          </button>
+          <button
+            type="button"
+            onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 10)}
+            className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+          >
+            +10s
+          </button>
+          <button
+            type="button"
+            onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -10)}
+            className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+          >
+            -10s
+          </button>
+          <button
+            type="button"
+            onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 1)}
+            className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+          >
+            +1s
+          </button>
+          <button
+            type="button"
+            onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -1)}
+            className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+          >
+            -1s
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // 2. Dual Team Stations (Live & Finished scoring)
+  const renderDualTeamStations = (isCompletedMode = false) => (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="font-bold text-gray-900 text-base">
+            {isCompletedMode ? 'Final Match Score Editing' : 'Team Scoring & Shot Control'}
+          </h3>
+          <p className="text-xs text-gray-400">
+            {isCompletedMode
+              ? `Editing official final scores for ${homeName} and ${awayName}`
+              : `Controlling scores for ${homeName} vs ${awayName}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => openIncidentLogger('home', 'goal')}
+            className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+          >
+            <span>+ Log Event</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* HOME TEAM STATION */}
+        <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                HOME: {homeName}
+              </span>
+              {!isCompletedMode && (
+                <button
+                  type="button"
+                  onClick={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay('home')}
+                  className={`text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                    matchState?.powerPlay === 'home'
+                      ? 'text-amber-500 underline underline-offset-2'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  {matchState?.powerPlay === 'home' ? 'Power Play Active' : 'Toggle Power Play'}
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div 
+                className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
+                dangerouslySetInnerHTML={{ __html: homeCrest }}
+              />
+              <h4 className="text-xl font-bold text-gray-900 truncate">
+                {homeName}
+              </h4>
+            </div>
+
+            {/* Giant Score Display */}
+            <div className="text-center my-4 py-3 bg-gray-50/80 rounded-2xl border border-gray-100">
+              <div className="text-7xl font-black text-gray-900 font-mono tracking-tight">
+                {homeScore}
+              </div>
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                {isCompletedMode ? 'Final Goals' : 'Goals'}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-3 border-t border-gray-100">
+            {/* Goal Increment / Decrement */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={scoreboard.decrementHomeScore}
+                className="py-3 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
+                title="Subtract 1 goal"
+              >
+                <Minus className="w-5 h-5" />
+                <span className="text-xs">Goal</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openIncidentLogger('home', 'goal')}
+                className="py-3 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
+                title="Add 1 goal (prompts for scorer & exact time)"
+              >
+                <Plus className="w-5 h-5" />
+                <span className="text-xs">+1 Goal</span>
+              </button>
+            </div>
+
+            {/* Shots on Goal Control (Live match only) */}
+            {!isCompletedMode && (
+              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                <span className="text-xs font-bold text-gray-600">
+                  Shots on Goal: <strong className="text-gray-900">{homeShots}</strong>
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={scoreboard.decrementHomeShots}
+                    className="w-7 h-7 bg-white hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-700 cursor-pointer"
+                    title="Subtract 1 shot"
+                  >
+                    -
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddShot('home')}
+                    className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center font-bold cursor-pointer"
+                    title="Add shot on goal (prompts for shot maker)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* AWAY TEAM STATION */}
+        <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">
+                AWAY: {awayName}
+              </span>
+              {!isCompletedMode && (
+                <button
+                  type="button"
+                  onClick={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay('away')}
+                  className={`text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                    matchState?.powerPlay === 'away'
+                      ? 'text-amber-500 underline underline-offset-2'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  {matchState?.powerPlay === 'away' ? 'Power Play Active' : 'Toggle Power Play'}
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div 
+                className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
+                dangerouslySetInnerHTML={{ __html: awayCrest }}
+              />
+              <h4 className="text-xl font-bold text-gray-900 truncate">
+                {awayName}
+              </h4>
+            </div>
+
+            {/* Giant Score Display */}
+            <div className="text-center my-4 py-3 bg-gray-50/80 rounded-2xl border border-gray-100">
+              <div className="text-7xl font-black text-gray-900 font-mono tracking-tight">
+                {awayScore}
+              </div>
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                {isCompletedMode ? 'Final Goals' : 'Goals'}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-3 border-t border-gray-100">
+            {/* Goal Increment / Decrement */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={scoreboard.decrementAwayScore}
+                className="py-3 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
+                title="Subtract 1 goal"
+              >
+                <Minus className="w-5 h-5" />
+                <span className="text-xs">Goal</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openIncidentLogger('away', 'goal')}
+                className="py-3 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
+                title="Add 1 goal (prompts for scorer & exact time)"
+              >
+                <Plus className="w-5 h-5" />
+                <span className="text-xs">+1 Goal</span>
+              </button>
+            </div>
+
+            {/* Shots on Goal Control (Live match only) */}
+            {!isCompletedMode && (
+              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                <span className="text-xs font-bold text-gray-600">
+                  Shots on Goal: <strong className="text-gray-900">{awayShots}</strong>
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={scoreboard.decrementAwayShots}
+                    className="w-7 h-7 bg-white hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-700 cursor-pointer"
+                    title="Subtract 1 shot"
+                  >
+                    -
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddShot('away')}
+                    className="w-7 h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex items-center justify-center font-bold cursor-pointer"
+                    title="Add shot on goal (prompts for shot maker)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // 3. Match Timeline & Incident Audit Trail
+  const renderTimelineSection = () => (
+    <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-gray-100">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-gray-900 text-base">Match Timeline & Incidents</h3>
+            <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase">
+              ● Live Timeline Setting
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Log goal scorers, assists, penalties, and timeouts for {homeName} vs {awayName}
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => openIncidentLogger('home', 'goal')}
+            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+          >
+            <span>+ Log Goal Scorer</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleOpenAddShot('home')}
+            className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+          >
+            <span>+ Log Shot Maker</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openIncidentLogger('home', 'penalty')}
+            className="px-3 py-1.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+          >
+            <span>+ Log Penalty</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openIncidentLogger('home', 'timeout')}
+            className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold border border-gray-200 transition-colors cursor-pointer"
+          >
+            <span>+ Timeout</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filter Tabs & Event Count */}
+      <div className="flex items-center justify-between mb-4 text-xs font-semibold">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setTimelineFilter('all')}
+            className={`py-1 transition-colors cursor-pointer ${
+              timelineFilter === 'all'
+                ? 'text-gray-900 border-b-2 border-gray-900 font-black'
+                : 'text-gray-400 hover:text-gray-700'
+            }`}
+          >
+            All ({currentEvents.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setTimelineFilter('goal')}
+            className={`py-1 transition-colors cursor-pointer ${
+              timelineFilter === 'goal'
+                ? 'text-blue-600 border-b-2 border-blue-600 font-black'
+                : 'text-gray-400 hover:text-gray-700'
+            }`}
+          >
+            Goals ({currentEvents.filter(e => e.type === 'goal').length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setTimelineFilter('shot')}
+            className={`py-1 transition-colors cursor-pointer ${
+              timelineFilter === 'shot'
+                ? 'text-sky-600 border-b-2 border-sky-600 font-black'
+                : 'text-gray-400 hover:text-gray-700'
+            }`}
+          >
+            Shots ({currentEvents.filter(e => e.type === 'shot').length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setTimelineFilter('penalty')}
+            className={`py-1 transition-colors cursor-pointer ${
+              timelineFilter === 'penalty'
+                ? 'text-gray-900 border-b-2 border-gray-900 font-black'
+                : 'text-gray-400 hover:text-gray-700'
+            }`}
+          >
+            Penalties ({currentEvents.filter(e => e.type === 'penalty').length})
+          </button>
+        </div>
+
+        <span className="text-[11px] text-gray-400">
+          Sorted by most recent
+        </span>
+      </div>
+
+      {/* Events List */}
+      {filteredEvents.length === 0 ? (
+        <div className="p-8 bg-gray-50/70 rounded-2xl border border-gray-100 text-center text-xs">
+          <span className="text-gray-400 font-semibold block mb-1">NO TIMELINE INCIDENTS RECORDED YET</span>
+          <p className="text-gray-500 max-w-sm mx-auto mb-3">
+            Click "+ Log Goal Scorer", "+ Log Shot Maker", or "+ Log Penalty" to set live timeline events for this match.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => openIncidentLogger('home', 'goal')}
+              className="px-3 py-1.5 bg-blue-50 text-blue-700 font-bold rounded-lg hover:bg-blue-100 cursor-pointer"
+            >
+              + Goal for {homeName}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenAddShot('home')}
+              className="px-3 py-1.5 bg-sky-50 text-sky-700 font-bold rounded-lg hover:bg-sky-100 cursor-pointer"
+            >
+              + Shot for {homeName}
+            </button>
+            <button
+              type="button"
+              onClick={() => openIncidentLogger('away', 'goal')}
+              className="px-3 py-1.5 bg-amber-50 text-amber-700 font-bold rounded-lg hover:bg-amber-100 cursor-pointer"
+            >
+              + Goal for {awayName}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenAddShot('away')}
+              className="px-3 py-1.5 bg-amber-50 text-amber-800 font-bold rounded-lg hover:bg-amber-100 cursor-pointer"
+            >
+              + Shot for {awayName}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {filteredEvents.map((evt) => {
+            const evtType = getNormalizedEventType(evt);
+            const isGoal = evtType === 'goal';
+            const isPenalty = evtType === 'penalty';
+            const isShot = evtType === 'shot';
+            const isHome = evt.team === 'home';
+            const evtTeamName = isHome ? homeName : awayName;
+
+            return (
+              <div
+                key={evt.id}
+                className="p-3.5 rounded-2xl border border-gray-100 bg-white hover:bg-gray-50/70 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Time & Period */}
+                  <div className="text-center w-14 shrink-0 bg-gray-100 py-1 px-1.5 rounded-xl">
+                    <span className="font-mono text-xs font-bold text-gray-800 block leading-tight">{evt.time || '00:00'}</span>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">{evt.period || 'P1'}</span>
+                  </div>
+
+                  {/* Event Details */}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[11px] font-black uppercase tracking-wider ${
+                        isGoal ? (isHome ? 'text-blue-600' : 'text-amber-600') : isShot ? 'text-sky-600' : isPenalty ? 'text-gray-800' : 'text-purple-600'
+                      }`}>
+                        {isGoal ? 'Goal' : isShot ? 'Shot on Goal' : isPenalty ? `${evt.penaltyMin || 2} Min Penalty` : 'Timeout'}
+                      </span>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-xs font-bold text-gray-900 truncate">
+                        {isGoal ? (evt.scorer || 'Goal Scored') : isShot ? (evt.shotPlayer || evt.player || 'Shot on Goal') : isPenalty ? (evt.penaltyPlayer || evt.player || 'Penalized Player') : evtTeamName}
+                      </span>
+                      {evt.score && (
+                        <span className="font-mono text-xs font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                          {evt.score}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-xs text-gray-500 mt-0.5 truncate flex items-center gap-2">
+                      <span className="font-medium text-gray-700">{evtTeamName}</span>
+                      {isGoal && evt.assist && (
+                        <>
+                          <span>•</span>
+                          <span>Assist: <strong className="text-gray-700">{evt.assist}</strong></span>
+                        </>
+                      )}
+                      {isShot && (
+                        <>
+                          <span>•</span>
+                          <span>Shot Maker: <strong className="text-gray-700">{evt.shotPlayer || evt.player}</strong></span>
+                        </>
+                      )}
+                      {isPenalty && (
+                        <>
+                          <span>•</span>
+                          <span>Infraction: <strong className="text-gray-700">{evt.penaltyReason || 'Tripping'}</strong></span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Edit and Delete Actions */}
+                <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => openIncidentLogger(evt.team, evtType, evt)}
+                    className="px-2.5 py-1 text-xs font-semibold text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                    title="Edit this incident"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteIncident(evt.id, isGoal, isShot, evt.team)}
+                    className="px-2.5 py-1 text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                    title="Delete this incident"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -628,1064 +1315,163 @@ export function RemoteView({
           isReadOnly={false}
           initialSubTab="standings"
         />
-      ) : (
-        <>
-          {/* Category Matches Quick Selector Strip */}
-          {currentCategoryMatches.length > 0 ? (
-            <div className="bg-white rounded-2xl p-3 border border-gray-200/80 shadow-2xs mb-6 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-x-auto py-0.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 shrink-0">
-                  {remoteNavTab === 'live' ? 'Live Matches:' : (remoteNavTab === 'upcoming' ? 'Upcoming Fixtures:' : 'Finished Matches:')}
-                </span>
-                {currentCategoryMatches.map((m) => {
-                  const isSelected = m.id === matchState?.id;
-                  const originalIdx = matches.findIndex(orig => orig.id === m.id);
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => onSelectMatch && onSelectMatch(m.id)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 border ${
-                        isSelected
-                          ? (remoteNavTab === 'live' 
-                              ? 'bg-red-50 text-red-700 border-red-300 shadow-2xs ring-1 ring-red-400/30'
-                              : remoteNavTab === 'upcoming'
-                              ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-2xs ring-1 ring-amber-400/30'
-                              : 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs ring-1 ring-emerald-400/30')
-                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
-                      }`}
-                    >
-                      <span className="font-mono text-[10px] text-gray-400">#{originalIdx + 1}</span>
-                      <span className="truncate max-w-[140px] sm:max-w-[180px]">
-                        {m.home?.name || 'Home'} vs {m.away?.name || 'Away'}
-                      </span>
-                      {remoteNavTab !== 'upcoming' && (
-                        <span className="font-mono font-black text-[11px] ml-0.5">
-                          ({m.home?.score ?? 0}-{m.away?.score ?? 0})
-                        </span>
-                      )}
-                      {isSelected && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ New Match</span>
-              </button>
-            </div>
-          ) : (
-            <div className="bg-white rounded-3xl p-8 sm:p-12 border border-dashed border-gray-300 text-center shadow-xs mb-6">
-              <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center mb-4 ${
-                remoteNavTab === 'live' ? 'bg-red-50 text-red-600 border border-red-100' :
-                remoteNavTab === 'upcoming' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                'bg-emerald-50 text-emerald-600 border border-emerald-100'
-              }`}>
-                {remoteNavTab === 'live' && <Radio className="w-7 h-7" />}
-                {remoteNavTab === 'upcoming' && <Calendar className="w-7 h-7" />}
-                {remoteNavTab === 'finished' && <CheckCircle2 className="w-7 h-7" />}
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-1">
-                {remoteNavTab === 'live' && 'No Live Matches In Progress'}
-                {remoteNavTab === 'upcoming' && 'No Upcoming Matches Scheduled'}
-                {remoteNavTab === 'finished' && 'No Finished Matches Recorded'}
-              </h3>
-              <p className="text-xs text-gray-500 max-w-md mx-auto mb-6">
-                {remoteNavTab === 'live' && 'There are currently no active fixtures in play. You can start one of your upcoming matches or create a new live match.'}
-                {remoteNavTab === 'upcoming' && 'There are no future fixtures currently scheduled in the league timetable. Create a new upcoming match fixture to prepare lineups.'}
-                {remoteNavTab === 'finished' && 'Matches that conclude with Full Time (FT) status will be cataloged here for post-game timeline and score audits.'}
-              </p>
-              <div className="flex items-center justify-center gap-3 flex-wrap">
-                {remoteNavTab === 'live' && upcomingMatchesCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => handleNavTabChange('upcoming')}
-                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-                  >
-                    View Upcoming Matches ({upcomingMatchesCount})
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New Match</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {currentCategoryMatches.length > 0 && (
-            <>
-              {/* Persistent Sticky Bar when scrolling - Always shows which match is being edited */}
-              <div className="sticky top-2 z-40 bg-gray-950/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-xl border border-gray-800 mb-6 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[11px] shrink-0 text-blue-400">
-                    <span className={`w-2 h-2 rounded-full ${isCompleted ? 'bg-emerald-400' : isUpcoming ? 'bg-amber-400' : 'bg-blue-500 animate-pulse'}`} />
-                    {isCompleted ? `Completed Match ${currentMatchNumber} of ${totalMatches}:` : isUpcoming ? `Upcoming Match ${currentMatchNumber} of ${totalMatches}:` : `Editing Match ${currentMatchNumber} of ${totalMatches}:`}
-                  </span>
-                  <span className="font-extrabold text-white text-sm truncate">
-                    {homeName} {!isUpcoming && <><span className="text-blue-400 font-mono">({homeScore})</span> vs <span className="text-amber-400 font-mono">({awayScore})</span></>} {isUpcoming && <span className="text-gray-400 font-normal">vs</span>} {awayName}
-                  </span>
-                  <span className="text-gray-500 hidden md:inline">•</span>
-                  <span className="text-gray-300 font-medium text-[11px] hidden md:inline">
-                    {isCompleted ? (
-                      <span className="text-emerald-400 font-bold">Full Time (FT) • Final Score</span>
-                    ) : isUpcoming ? (
-                      <span className="text-amber-400 font-bold">Scheduled • {matchState?.dateTime || matchState?.date || 'Upcoming'}</span>
-                    ) : (
-                      `Period ${matchState?.period || '1'} • ${formattedTime}`
-                    )}
-                  </span>
-                  <span className="text-gray-500 hidden lg:inline">•</span>
-                  <span className="text-gray-400 text-[11px] hidden lg:inline truncate max-w-[150px]">
-                    {matchState?.venue || 'Arena'}
+      ) : remoteNavTab === 'finished' ? (
+        editingMatchId === null ? (
+          /* FINISHED MATCHES LIST HUB */
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs border border-emerald-200">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <h2 className="text-xl font-black text-gray-900 tracking-tight">Completed Matches</h2>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    {finishedMatches.length}
                   </span>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  {currentCategoryMatches.length > 1 && (
-                    <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-700/80 rounded-xl px-2.5 py-1">
-                      <span className="text-[10px] uppercase font-bold text-gray-400 shrink-0">Switch:</span>
-                      <select
-                        value={matchState?.id || ''}
-                        onChange={(e) => onSelectMatch && onSelectMatch(e.target.value)}
-                        className="bg-transparent text-xs font-bold text-gray-100 outline-none cursor-pointer max-w-[160px] sm:max-w-[200px] truncate"
-                        title="Select active match to control"
-                      >
-                        {currentCategoryMatches.map((m) => {
-                          const idx = matches.findIndex(orig => orig.id === m.id);
-                          return (
-                            <option key={m.id} value={m.id} className="bg-gray-900 text-white">
-                              Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} {remoteNavTab === 'upcoming' ? '' : `(${m.home?.score ?? 0}-${m.away?.score ?? 0})`}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  )}
-                  {isUpcoming && (
-                    <button
-                      type="button"
-                      onClick={() => handleStartUpcomingMatch()}
-                      className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0 flex items-center gap-1"
-                    >
-                      <Play className="w-3 h-3 fill-current" />
-                      <span>Start Match</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsSwitchModalOpen(true)}
-                    className="px-2.5 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-750 text-gray-200 text-xs font-bold border border-gray-700 transition-colors cursor-pointer shrink-0"
-                  >
-                    <span>Browse All</span>
-                  </button>
-                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Official final scores, box scores, and archival records. Select any match to edit scores, update timeline events, or reopen as live.
+                </p>
               </div>
-
-      {/* 1. JUMBOTRON MASTER MATCH BANNER */}
-      <div className="bg-gradient-to-br from-gray-950 via-slate-900 to-gray-900 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-slate-800 mb-6 relative overflow-hidden">
-        {/* Arena Glow FX */}
-        <div className="absolute -right-20 -top-20 w-60 h-60 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -left-20 -bottom-20 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        {/* Top Header Strip with Prominent Match Identification */}
-        <div className="pb-4 mb-4 border-b border-gray-800/80">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs mb-3">
-            <div className="flex items-center gap-2">
-              <span className={`px-2 py-0.5 rounded-md font-extrabold uppercase tracking-wider text-[11px] border ${
-                isCompleted 
-                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                  : isUpcoming
-                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                  : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-              }`}>
-                {isCompleted ? `COMPLETED MATCH ${currentMatchNumber} OF ${totalMatches}` : isUpcoming ? `UPCOMING FIXTURE ${currentMatchNumber} OF ${totalMatches}` : `ACTIVE MATCH ${currentMatchNumber} OF ${totalMatches}`}
-              </span>
-              <span className="text-gray-600">•</span>
-              <span className="font-mono font-bold tracking-wider uppercase text-gray-300">
-                {isCompleted ? 'FULL TIME (FINISHED)' : isUpcoming ? 'SCHEDULED • PUCK DROP PENDING' : (isRunning ? 'BROADCAST CLOCK RUNNING' : 'ARENA CLOCK PAUSED')}
-              </span>
-              <span className="text-gray-600">•</span>
-              <span className="text-gray-400 font-medium">{matchState?.venue || 'Arena'}</span>
-            </div>
-
-            {/* Action buttons: Switch Match, Add Match, Delete Match */}
-            <div className="flex items-center gap-2">
-              {isUpcoming && (
-                <button
-                  type="button"
-                  onClick={() => handleStartUpcomingMatch()}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Start Match (P1)</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsSwitchModalOpen(true)}
-                className="px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-bold border border-gray-700 transition-colors cursor-pointer"
-                title="Switch active match"
-              >
-                <span>Switch Match</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer"
-                title="Create new match"
-              >
-                <span>Add Match</span>
-              </button>
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedMatchToDelete(matchState?.id || (matches[0] && matches[0].id));
-                  setIsDeleteModalOpen(true);
+                  setAddPeriod('FT');
+                  setIsAddModalOpen(true);
                 }}
-                disabled={matches.length <= 1}
-                className="px-3 py-1.5 rounded-xl bg-red-950/60 hover:bg-red-900 text-red-300 text-xs font-bold border border-red-800/60 disabled:opacity-30 transition-colors cursor-pointer"
-                title="Open Delete Match pop-up"
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 shrink-0"
               >
-                <span>Delete Match</span>
+                <Plus className="w-4 h-4" />
+                <span>Add Completed Match</span>
               </button>
             </div>
-          </div>
 
-          <div className="bg-black/40 rounded-xl px-4 py-2 border border-gray-800 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 uppercase font-semibold text-[10px] tracking-wider">Currently Editing:</span>
-              <span className="text-white font-extrabold text-sm">{homeName} vs {awayName}</span>
-              <span className="text-gray-500 font-mono text-[11px]">(ID: {matchState?.id || 'active'})</span>
-            </div>
-            <div className="text-gray-400 text-[11px] flex items-center gap-2">
-              <span>{matchState?.date || matchState?.dateTime || 'Scheduled'}</span>
-              <span>•</span>
-              <span className={isCompleted ? 'text-emerald-400 font-bold' : isUpcoming ? 'text-amber-400 font-bold' : 'text-blue-400 font-bold'}>
-                {isCompleted ? 'Finished (Full Time)' : isUpcoming ? 'Upcoming Fixture' : (matchState?.status || `Period ${matchState?.period || '1'}`)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Jumbotron Matchup Display */}
-        <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-6 py-2">
-          {/* Home Team */}
-          <div className="flex items-center justify-start md:justify-end gap-4 text-left md:text-right min-w-0">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">
-                HOME TEAM {!isCompleted && matchState?.powerPlay === 'home' && <span className="ml-1 text-amber-300 font-extrabold">• POWER PLAY</span>}
-              </div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white truncate max-w-[200px]">
-                {homeName}
-              </h2>
-              <div className="text-xs text-gray-400 mt-1 font-mono">
-                SOG: <strong className="text-gray-100 font-bold">{homeShots}</strong>
-              </div>
-            </div>
-            <div 
-              className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 flex items-center justify-center drop-shadow-md"
-              dangerouslySetInnerHTML={{ __html: homeCrest }}
-            />
-          </div>
-
-          {/* Central Big Score & Clock */}
-          <div className="flex flex-col items-center justify-center text-center px-4 py-3 bg-black/40 rounded-2xl border border-gray-800">
-            <div className="text-5xl sm:text-6xl font-black tracking-tight font-mono text-white flex items-center gap-3">
-              <span>{homeScore}</span>
-              <span className="text-gray-600 font-light text-4xl">-</span>
-              <span>{awayScore}</span>
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              {isCompleted ? (
-                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                  Final Score • Full Time (FT)
-                </span>
-              ) : (
-                <>
-                  <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">
-                    Period {matchState?.period || '1'}
-                  </span>
-                  <span className="text-gray-600">•</span>
-                  <span className="font-mono text-xs font-bold text-gray-300 tracking-wider">
-                    {formattedTime}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Away Team */}
-          <div className="flex items-center justify-start gap-4 text-left min-w-0">
-            <div 
-              className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 flex items-center justify-center drop-shadow-md"
-              dangerouslySetInnerHTML={{ __html: awayCrest }}
-            />
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-0.5">
-                AWAY TEAM {!isCompleted && matchState?.powerPlay === 'away' && <span className="ml-1 text-amber-300 font-extrabold">• POWER PLAY</span>}
-              </div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white truncate max-w-[200px]">
-                {awayName}
-              </h2>
-              <div className="text-xs text-gray-400 mt-1 font-mono">
-                SOG: <strong className="text-gray-100 font-bold">{awayShots}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Console Mode Selector */}
-      <div className="flex items-center gap-2 p-1.5 bg-gray-100 rounded-2xl mb-6 border border-gray-200">
-        <button
-          onClick={() => setConsoleTab('operator')}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
-            consoleTab === 'operator'
-              ? 'bg-white text-gray-900 shadow-xs'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <span>Live Operator Console</span>
-        </button>
-
-        <button
-          onClick={() => setConsoleTab('admin')}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-            consoleTab === 'admin'
-              ? 'bg-white text-blue-600 shadow-xs'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <span>Admin Master Controls (Time, Score, Schedule)</span>
-          {isAdmin && (
-            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-extrabold rounded-md">
-              ADMIN
-            </span>
-          )}
-        </button>
-      </div>
-
-      {consoleTab === 'admin' ? (
-        <div className="space-y-6">
-          <AdminPanel
-            matchState={matchState}
-            scoreboard={scoreboard}
-            remainingSeconds={remainingSeconds}
-            isRunning={isRunning}
-            currentUser={currentUser}
-          />
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* 3. PRECISION GAME CLOCK CONTROLS (Removed for completed & upcoming matches) */}
-          {isUpcoming ? (
-            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold text-sm shrink-0">
-                  <Calendar className="w-6 h-6 text-amber-600" />
+            {finishedMatches.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-xs">
+                <div className="w-12 h-12 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center mx-auto mb-3">
+                  <Trophy className="w-6 h-6" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-gray-900 text-base">Upcoming Match Scheduled</h3>
-                    <span className="text-[11px] text-amber-700 font-extrabold uppercase px-2 py-0.5 bg-amber-100 rounded-md">
-                      {matchState?.dateTime || matchState?.date || 'Scheduled'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    This fixture is scheduled to be played at <strong className="text-gray-800">{matchState?.venue || 'Arena'}</strong>. When puck drops, start Period 1 to activate live scoring and broadcast clock.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleStartUpcomingMatch()}
-                className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-emerald-600/20 transition-all active:scale-98 cursor-pointer flex items-center gap-2 shrink-0"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                <span>Drop Puck & Start Match (P1)</span>
-              </button>
-            </div>
-          ) : isCompleted ? (
-            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center font-bold text-sm shrink-0">
-                  FT
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-gray-900 text-base">Match Completed (Full Time)</h3>
-                    <span className="text-[11px] text-emerald-600 font-extrabold uppercase">● Final</span>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Game timer and clock controls are removed for completed fixtures. Only editing of the final score and timeline incidents is enabled.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => scoreboard.setPeriod('3')}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer shrink-0"
-                title="Reopen match as Live in Period 3"
-              >
-                <span>Reopen Match as Live (Period 3)</span>
-              </button>
-            </div>
-          ) : (
-            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-gray-700" />
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-base">Game Clock Control</h3>
-                    <p className="text-[11px] text-gray-400">Match {currentMatchNumber} of {totalMatches} • {homeName} vs {awayName}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] font-semibold text-gray-400 hidden sm:inline">
-                    Shortcut: <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-gray-600 font-mono text-[10px]">Space</kbd> Start/Pause
-                  </span>
-                  <span className={`text-xs font-bold tracking-wide ${
-                    isRunning ? 'text-emerald-600 font-mono' : 'text-gray-400'
-                  }`}>
-                    {isRunning ? 'COUNTING DOWN' : 'PAUSED'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Big Clock Display */}
-              <div className="text-center py-5 bg-gradient-to-b from-gray-900 to-slate-900 text-white rounded-2xl border border-gray-800 mb-6 shadow-inner">
-                <div className="text-6xl sm:text-7xl font-mono font-black tracking-tight text-white drop-shadow-md">
-                  {formattedTime}
-                </div>
-                <div className="text-xs font-semibold text-gray-400 mt-2 uppercase tracking-wider flex items-center justify-center gap-2">
-                  <span>Period {matchState?.period || '1'}</span>
-                  <span>•</span>
-                  <span className={isRunning ? 'text-emerald-400 font-bold' : 'text-gray-400'}>
-                    {isRunning ? 'Live Game Action' : 'Clock Stopped'}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 pt-3 border-t border-gray-800/80 px-4">
-                  <span className="text-[11px] text-gray-400 font-semibold mr-1">Period:</span>
-                  {['1', '2', '3', 'OT', 'SO', 'FT'].map((pKey) => {
-                    const isSelected = String(matchState?.period) === pKey;
-                    const label = pKey === 'FT' ? 'End Game (FT)' : pKey === 'OT' ? 'Overtime' : pKey === 'SO' ? 'SO' : `P${pKey}`;
-                    return (
-                      <button
-                        key={pKey}
-                        type="button"
-                        onClick={() => scoreboard.setPeriod(pKey)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-blue-600 text-white shadow-xs'
-                            : 'bg-gray-800/80 hover:bg-gray-700 text-gray-300'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Main Action Buttons: Start/Pause & Presets */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                {isRunning ? (
-                  <button
-                    type="button"
-                    onClick={() => scoreboard.pauseClock(remainingSeconds)}
-                    className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-4 px-6 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-base shadow-md shadow-amber-500/20 transition-all active:scale-98 cursor-pointer"
-                  >
-                    <Pause className="w-5 h-5 fill-current" />
-                    <span>Pause Clock</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={scoreboard.startClock}
-                    className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-base shadow-md shadow-emerald-600/20 transition-all active:scale-98 cursor-pointer"
-                  >
-                    <Play className="w-5 h-5 fill-current" />
-                    <span>Start Clock</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => scoreboard.resetClock(1200)}
-                  className="flex items-center justify-center gap-1.5 py-4 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-2xl font-bold text-xs transition-all active:scale-98 cursor-pointer"
-                  title="Reset to 20:00 regulation period"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>20:00 (Period)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => scoreboard.resetClock(300)}
-                  className="flex items-center justify-center gap-1.5 py-4 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-2xl font-bold text-xs transition-all active:scale-98 cursor-pointer"
-                  title="Reset to 5:00 Overtime"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>5:00 (Overtime)</span>
-                </button>
-              </div>
-
-              {/* Period Quick Presets & Fine Tuning */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100 text-xs font-semibold text-gray-600">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-gray-400 font-medium">Presets:</span>
-                  <button
-                    type="button"
-                    onClick={() => scoreboard.resetClock(900)}
-                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
-                  >
-                    15:00 Int.
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scoreboard.resetClock(120)}
-                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
-                  >
-                    2:00 Minor
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scoreboard.resetClock(60)}
-                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
-                  >
-                    1:00 Final
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="text-gray-400 font-medium">Adjust:</span>
-                  <button
-                    type="button"
-                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 60)}
-                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                  >
-                    +1m
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -60)}
-                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                  >
-                    -1m
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 10)}
-                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                  >
-                    +10s
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -10)}
-                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                  >
-                    -10s
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 1)}
-                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                  >
-                    +1s
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -1)}
-                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                  >
-                    -1s
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Live Penalty Tracker & Power Plays */}
-          <PenaltyTracker 
-            matchState={matchState} 
-            isOperator={true} 
-            onCancelPenalty={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay(null)} 
-          />
-
-          {/* Period-by-Period Box Score Table */}
-          <BoxScoreTable matchState={matchState} />
-
-          {/* 4. DUAL TEAM STATIONS: GOALS / SCORE EDITING */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="font-bold text-gray-900 text-base">
-                  {isCompleted ? 'Final Match Score Editing' : 'Team Scoring & Shot Control'}
-                </h3>
-                <p className="text-xs text-gray-400">
-                  {isCompleted
-                    ? `Editing official final scores for ${homeName} and ${awayName}`
-                    : `Controlling scores for ${homeName} vs ${awayName}`}
+                <h3 className="font-bold text-gray-800 text-base mb-1">No Completed Matches</h3>
+                <p className="text-xs text-gray-500 max-w-sm mx-auto mb-4">
+                  Matches that reach Full Time (FT) will be automatically listed here.
                 </p>
-              </div>
-              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => openIncidentLogger('home', 'goal')}
-                  className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  onClick={() => {
+                    setAddPeriod('FT');
+                    setIsAddModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
                 >
-                  <span>+ Log Event</span>
+                  + Record Finished Match
                 </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* HOME TEAM STATION */}
-              <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                      HOME STATION: {homeName}
-                    </span>
-                    {!isCompleted && (
-                      <button
-                        type="button"
-                        onClick={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay('home')}
-                        className={`text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                          matchState?.powerPlay === 'home'
-                            ? 'text-amber-500 underline underline-offset-2'
-                            : 'text-gray-400 hover:text-gray-600'
-                        }`}
-                      >
-                        {matchState?.powerPlay === 'home' ? 'Power Play Active' : 'Toggle Power Play'}
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-3 mb-4">
-                    <div 
-                      className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
-                      dangerouslySetInnerHTML={{ __html: homeCrest }}
-                    />
-                    <h4 className="text-xl font-bold text-gray-900 truncate">
-                      {homeName}
-                    </h4>
-                  </div>
-
-                  {/* Giant Score Display */}
-                  <div className="text-center my-4 py-3 bg-gray-50/80 rounded-2xl border border-gray-100">
-                    <div className="text-7xl font-black text-gray-900 font-mono tracking-tight">
-                      {homeScore}
-                    </div>
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                      {isCompleted ? 'Final Goals' : 'Goals'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-3 border-t border-gray-100">
-                  {/* Goal Increment / Decrement */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={scoreboard.decrementHomeScore}
-                      className="py-3 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
-                      title="Subtract 1 goal"
-                    >
-                      <Minus className="w-5 h-5" />
-                      <span className="text-xs">Goal</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => openIncidentLogger('home', 'goal')}
-                      className="py-3 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
-                      title="Add 1 goal (prompts for scorer & exact time)"
-                    >
-                      <Plus className="w-5 h-5" />
-                      <span className="text-xs">+1 Goal</span>
-                    </button>
-                  </div>
-
-                  {/* Shots on Goal Control (Live match only) */}
-                  {!isCompleted && (
-                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-                      <span className="text-xs font-bold text-gray-600">
-                        Shots on Goal: <strong className="text-gray-900">{homeShots}</strong>
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={scoreboard.decrementHomeShots}
-                          className="w-7 h-7 bg-white hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-700 cursor-pointer"
-                          title="Subtract 1 shot"
-                        >
-                          -
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenAddShot('home')}
-                          className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center font-bold cursor-pointer"
-                          title="Add shot on goal (prompts for shot maker)"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Quick Incident Button */}
-                  <button
-                    type="button"
-                    onClick={() => openIncidentLogger('home', 'goal')}
-                    className="w-full py-2 bg-gray-50 hover:bg-blue-50 text-blue-700 text-xs font-bold rounded-xl border border-dashed border-gray-300 hover:border-blue-400 transition-colors cursor-pointer"
-                  >
-                    <span>+ Log Goal with Scorer Roster</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* AWAY TEAM STATION */}
-              <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">
-                      AWAY STATION: {awayName}
-                    </span>
-                    {!isCompleted && (
-                      <button
-                        type="button"
-                        onClick={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay('away')}
-                        className={`text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                          matchState?.powerPlay === 'away'
-                            ? 'text-amber-500 underline underline-offset-2'
-                            : 'text-gray-400 hover:text-gray-600'
-                        }`}
-                      >
-                        {matchState?.powerPlay === 'away' ? 'Power Play Active' : 'Toggle Power Play'}
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-3 mb-4">
-                    <div 
-                      className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
-                      dangerouslySetInnerHTML={{ __html: awayCrest }}
-                    />
-                    <h4 className="text-xl font-bold text-gray-900 truncate">
-                      {awayName}
-                    </h4>
-                  </div>
-
-                  {/* Giant Score Display */}
-                  <div className="text-center my-4 py-3 bg-gray-50/80 rounded-2xl border border-gray-100">
-                    <div className="text-7xl font-black text-gray-900 font-mono tracking-tight">
-                      {awayScore}
-                    </div>
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                      {isCompleted ? 'Final Goals' : 'Goals'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-3 border-t border-gray-100">
-                  {/* Goal Increment / Decrement */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={scoreboard.decrementAwayScore}
-                      className="py-3 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
-                      title="Subtract 1 goal"
-                    >
-                      <Minus className="w-5 h-5" />
-                      <span className="text-xs">Goal</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => openIncidentLogger('away', 'goal')}
-                      className="py-3 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
-                      title="Add 1 goal (prompts for scorer & exact time)"
-                    >
-                      <Plus className="w-5 h-5" />
-                      <span className="text-xs">+1 Goal</span>
-                    </button>
-                  </div>
-
-                  {/* Shots on Goal Control (Live match only) */}
-                  {!isCompleted && (
-                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-                      <span className="text-xs font-bold text-gray-600">
-                        Shots on Goal: <strong className="text-gray-900">{awayShots}</strong>
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={scoreboard.decrementAwayShots}
-                          className="w-7 h-7 bg-white hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-700 cursor-pointer"
-                          title="Subtract 1 shot"
-                        >
-                          -
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenAddShot('away')}
-                          className="w-7 h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex items-center justify-center font-bold cursor-pointer"
-                          title="Add shot on goal (prompts for shot maker)"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Quick Incident Button */}
-                  <button
-                    type="button"
-                    onClick={() => openIncidentLogger('away', 'goal')}
-                    className="w-full py-2 bg-gray-50 hover:bg-amber-50 text-amber-700 text-xs font-bold rounded-xl border border-dashed border-gray-300 hover:border-amber-400 transition-colors cursor-pointer"
-                  >
-                    <span>+ Log Goal with Scorer Roster</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 5. LIVE MATCH TIMELINE & INCIDENTS (ADMIN CONTROL) */}
-          <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-gray-100 gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-gray-900 text-base">Live Match Timeline & Incidents</h3>
-                  <span className="text-xs text-blue-600 font-extrabold uppercase">● Admin Live Setting</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Set live goal scorers, assists, penalties, and timeouts for {homeName} vs {awayName}
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openIncidentLogger('home', 'goal')}
-                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                >
-                  <span>+ Log Goal Scorer</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleOpenAddShot('home')}
-                  className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                >
-                  <span>+ Log Shot Maker</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openIncidentLogger('home', 'penalty')}
-                  className="px-3 py-1.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                >
-                  <span>+ Log Penalty</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openIncidentLogger('home', 'timeout')}
-                  className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold border border-gray-200 transition-colors cursor-pointer"
-                >
-                  <span>+ Timeout</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Filter Tabs & Event Count */}
-            <div className="flex items-center justify-between mb-4 text-xs font-semibold">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setTimelineFilter('all')}
-                  className={`py-1 transition-colors cursor-pointer ${
-                    timelineFilter === 'all'
-                      ? 'text-gray-900 border-b-2 border-gray-900 font-black'
-                      : 'text-gray-400 hover:text-gray-700'
-                  }`}
-                >
-                  All ({currentEvents.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTimelineFilter('goal')}
-                  className={`py-1 transition-colors cursor-pointer ${
-                    timelineFilter === 'goal'
-                      ? 'text-blue-600 border-b-2 border-blue-600 font-black'
-                      : 'text-gray-400 hover:text-gray-700'
-                  }`}
-                >
-                  Goals ({currentEvents.filter(e => e.type === 'goal').length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTimelineFilter('shot')}
-                  className={`py-1 transition-colors cursor-pointer ${
-                    timelineFilter === 'shot'
-                      ? 'text-sky-600 border-b-2 border-sky-600 font-black'
-                      : 'text-gray-400 hover:text-gray-700'
-                  }`}
-                >
-                  Shots ({currentEvents.filter(e => e.type === 'shot').length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTimelineFilter('penalty')}
-                  className={`py-1 transition-colors cursor-pointer ${
-                    timelineFilter === 'penalty'
-                      ? 'text-gray-900 border-b-2 border-gray-900 font-black'
-                      : 'text-gray-400 hover:text-gray-700'
-                  }`}
-                >
-                  Penalties ({currentEvents.filter(e => e.type === 'penalty').length})
-                </button>
-              </div>
-
-              <span className="text-[11px] text-gray-400">
-                Sorted by most recent
-              </span>
-            </div>
-
-            {/* Events List */}
-            {filteredEvents.length === 0 ? (
-              <div className="p-8 bg-gray-50/70 rounded-2xl border border-gray-100 text-center text-xs">
-                <span className="text-gray-400 font-semibold block mb-1">NO TIMELINE INCIDENTS RECORDED YET</span>
-                <p className="text-gray-500 max-w-sm mx-auto mb-3">
-                  Click "+ Log Goal Scorer", "+ Log Shot Maker", or "+ Log Penalty" to set live timeline events for this match.
-                </p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openIncidentLogger('home', 'goal')}
-                    className="px-3 py-1.5 bg-blue-50 text-blue-700 font-bold rounded-lg hover:bg-blue-100 cursor-pointer"
-                  >
-                    + Goal for {homeName}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAddShot('home')}
-                    className="px-3 py-1.5 bg-sky-50 text-sky-700 font-bold rounded-lg hover:bg-sky-100 cursor-pointer"
-                  >
-                    + Shot for {homeName}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openIncidentLogger('away', 'goal')}
-                    className="px-3 py-1.5 bg-amber-50 text-amber-700 font-bold rounded-lg hover:bg-amber-100 cursor-pointer"
-                  >
-                    + Goal for {awayName}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAddShot('away')}
-                    className="px-3 py-1.5 bg-amber-50 text-amber-800 font-bold rounded-lg hover:bg-amber-100 cursor-pointer"
-                  >
-                    + Shot for {awayName}
-                  </button>
-                </div>
               </div>
             ) : (
-              <div className="space-y-2.5">
-                {filteredEvents.map((evt) => {
-                  const evtType = getNormalizedEventType(evt);
-                  const isGoal = evtType === 'goal';
-                  const isPenalty = evtType === 'penalty';
-                  const isShot = evtType === 'shot';
-                  const isHome = evt.team === 'home';
-                  const evtTeamName = isHome ? homeName : awayName;
+              <div className="grid grid-cols-1 gap-4">
+                {finishedMatches.map((m) => {
+                  const hCrest = NHL_TEAMS[m.home?.id]?.crestSvg || m.home?.crestSvg || NHL_TEAMS.blackhawks.crestSvg;
+                  const aCrest = NHL_TEAMS[m.away?.id]?.crestSvg || m.away?.crestSvg || NHL_TEAMS.penguins.crestSvg;
+                  const origIdx = matches.findIndex(orig => orig.id === m.id);
 
                   return (
                     <div
-                      key={evt.id}
-                      className="p-3.5 rounded-2xl border border-gray-100 bg-white hover:bg-gray-50/70 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                      key={m.id}
+                      className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/90 shadow-xs hover:border-gray-300 transition-all"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {/* Time & Period */}
-                        <div className="text-center w-14 shrink-0 bg-gray-100 py-1 px-1.5 rounded-xl">
-                          <span className="font-mono text-xs font-bold text-gray-800 block leading-tight">{evt.time || '00:00'}</span>
-                          <span className="text-[10px] uppercase font-bold text-gray-400 block">{evt.period || 'P1'}</span>
+                      <div className="flex items-center justify-between gap-3 pb-3 mb-4 border-b border-gray-100 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            FINAL • FT
+                          </span>
+                          <span className="text-gray-500 font-medium truncate">
+                            {m.venue || 'United Center'} • {m.date || 'Final Score'}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-gray-400">
+                          Match #{origIdx + 1}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-7 items-center gap-3 py-2">
+                        <div className="col-span-3 flex items-center gap-3">
+                          <div 
+                            className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
+                            dangerouslySetInnerHTML={{ __html: hCrest }}
+                          />
+                          <div className="min-w-0">
+                            <div className="font-bold text-gray-900 text-base truncate">
+                              {m.home?.name || 'Home Team'}
+                            </div>
+                            <div className="text-[11px] font-medium text-gray-400">
+                              SOG: <strong className="text-gray-600">{m.home?.shots ?? '—'}</strong>
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Event Details */}
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[11px] font-black uppercase tracking-wider ${
-                              isGoal ? (isHome ? 'text-blue-600' : 'text-amber-600') : isShot ? 'text-sky-600' : isPenalty ? 'text-gray-800' : 'text-purple-600'
-                            }`}>
-                              {isGoal ? 'Goal' : isShot ? 'Shot on Goal' : isPenalty ? `${evt.penaltyMin || 2} Min Penalty` : 'Timeout'}
-                            </span>
-                            <span className="text-gray-300">•</span>
-                            <span className="text-xs font-bold text-gray-900 truncate">
-                              {isGoal ? (evt.scorer || 'Goal Scored') : isShot ? (evt.shotPlayer || evt.player || 'Shot on Goal') : isPenalty ? (evt.penaltyPlayer || evt.player || 'Penalized Player') : evtTeamName}
-                            </span>
-                            {evt.score && (
-                              <span className="font-mono text-xs font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
-                                {evt.score}
-                              </span>
-                            )}
+                        <div className="col-span-1 text-center">
+                          <div className="text-2xl sm:text-3xl font-black font-mono text-gray-900 tracking-tight">
+                            {m.home?.score ?? 0} - {m.away?.score ?? 0}
                           </div>
+                          <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 mt-0.5">
+                            Final
+                          </div>
+                        </div>
 
-                          <div className="text-xs text-gray-500 mt-0.5 truncate flex items-center gap-2">
-                            <span className="font-medium text-gray-700">{evtTeamName}</span>
-                            {isGoal && evt.assist && (
-                              <>
-                                <span>•</span>
-                                <span>Assist: <strong className="text-gray-700">{evt.assist}</strong></span>
-                              </>
-                            )}
-                            {isShot && (
-                              <>
-                                <span>•</span>
-                                <span>Shot Maker: <strong className="text-gray-700">{evt.shotPlayer || evt.player}</strong></span>
-                              </>
-                            )}
-                            {isPenalty && (
-                              <>
-                                <span>•</span>
-                                <span>Infraction: <strong className="text-gray-700">{evt.penaltyReason || 'Tripping'}</strong></span>
-                              </>
-                            )}
+                        <div className="col-span-3 flex items-center justify-end gap-3 text-right">
+                          <div className="min-w-0">
+                            <div className="font-bold text-gray-900 text-base truncate">
+                              {m.away?.name || 'Away Team'}
+                            </div>
+                            <div className="text-[11px] font-medium text-gray-400">
+                              SOG: <strong className="text-gray-600">{m.away?.shots ?? '—'}</strong>
+                            </div>
                           </div>
+                          <div 
+                            className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
+                            dangerouslySetInnerHTML={{ __html: aCrest }}
+                          />
                         </div>
                       </div>
 
-                      {/* Edit and Delete Actions */}
-                      <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-4 mt-3 border-t border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onSelectMatch && matchState?.id !== m.id) {
+                                onSelectMatch(m.id);
+                              }
+                              setEditingMatchId(m.id);
+                            }}
+                            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit Scores & Timeline</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleReopenMatch(m.id)}
+                            className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            title="Reopen match as Live in Period 3"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Reopen as Live (P3)</span>
+                          </button>
+                        </div>
+
                         <button
                           type="button"
-                          onClick={() => openIncidentLogger(evt.team, evtType, evt)}
-                          className="px-2.5 py-1 text-xs font-semibold text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                          title="Edit this incident"
+                          onClick={() => {
+                            setSelectedMatchToDelete(m.id);
+                            setIsDeleteModalOpen(true);
+                          }}
+                          className="px-2.5 py-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Delete completed match record"
                         >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteIncident(evt.id, isGoal, isShot, evt.team)}
-                          className="px-2.5 py-1 text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          title="Delete this incident"
-                        >
-                          Delete
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Delete</span>
                         </button>
                       </div>
                     </div>
@@ -1694,11 +1480,629 @@ export function RemoteView({
               </div>
             )}
           </div>
-        </div>
-      )}
-            </>
-          )}
-        </>
+        ) : (
+          /* FINISHED MATCH FOCUSED EDITOR */
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl p-5 shadow-xs border border-gray-100 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingMatchId(null)}
+                  className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Completed Matches</span>
+                </button>
+                <div className="h-4 w-px bg-gray-200" />
+                <div>
+                  <h2 className="text-base font-bold text-gray-900 truncate">
+                    Editing: {homeName} vs {awayName}
+                  </h2>
+                  <p className="text-[11px] text-gray-400">
+                    Official Final Result • {matchState?.venue || 'Arena'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleReopenMatch(matchState?.id)}
+                className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Reopen match as Live in Period 3"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reopen Match as Live (Period 3)</span>
+              </button>
+            </div>
+
+            <BoxScoreTable matchState={matchState} />
+            {renderDualTeamStations(true)}
+            {renderTimelineSection()}
+          </div>
+        )
+      ) : remoteNavTab === 'upcoming' ? (
+        editingMatchId === null ? (
+          /* UPCOMING FIXTURES LIST HUB */
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-xs border border-amber-200">
+                    <Calendar className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <h2 className="text-xl font-black text-gray-900 tracking-tight">Upcoming Fixtures</h2>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    {upcomingMatches.length}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Scheduled matches, arenas, and start times. Drop puck to launch live scoring or edit fixture details.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddPeriod('UPCOMING');
+                  setIsAddModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Schedule Fixture</span>
+              </button>
+            </div>
+
+            {upcomingMatches.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-xs">
+                <div className="w-12 h-12 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center mx-auto mb-3">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-gray-800 text-base mb-1">No Upcoming Fixtures Scheduled</h3>
+                <p className="text-xs text-gray-500 max-w-sm mx-auto mb-4">
+                  Plan future matchups, set venues, and declare starting lineups before puck drop.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddPeriod('UPCOMING');
+                    setIsAddModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  + Schedule Match Now
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {upcomingMatches.map((m) => {
+                  const hCrest = NHL_TEAMS[m.home?.id]?.crestSvg || m.home?.crestSvg || NHL_TEAMS.blackhawks.crestSvg;
+                  const aCrest = NHL_TEAMS[m.away?.id]?.crestSvg || m.away?.crestSvg || NHL_TEAMS.penguins.crestSvg;
+                  const origIdx = matches.findIndex(orig => orig.id === m.id);
+
+                  return (
+                    <div
+                      key={m.id}
+                      className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/90 shadow-xs hover:border-gray-300 transition-all"
+                    >
+                      <div className="flex items-center justify-between gap-3 pb-3 mb-4 border-b border-gray-100 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                            SCHEDULED
+                          </span>
+                          <span className="text-gray-500 font-medium truncate">
+                            {m.venue || 'Arena'} • {m.dateTime || m.date || 'Upcoming'}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-gray-400">
+                          Match #{origIdx + 1}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-7 items-center gap-3 py-2">
+                        <div className="col-span-3 flex items-center gap-3">
+                          <div 
+                            className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
+                            dangerouslySetInnerHTML={{ __html: hCrest }}
+                          />
+                          <div className="min-w-0">
+                            <div className="font-bold text-gray-900 text-base truncate">
+                              {m.home?.name || 'Home Team'}
+                            </div>
+                            <div className="text-[11px] font-medium text-gray-400">
+                              Home
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="col-span-1 text-center">
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-gray-100 text-gray-600">
+                            VS
+                          </span>
+                        </div>
+
+                        <div className="col-span-3 flex items-center justify-end gap-3 text-right">
+                          <div className="min-w-0">
+                            <div className="font-bold text-gray-900 text-base truncate">
+                              {m.away?.name || 'Away Team'}
+                            </div>
+                            <div className="text-[11px] font-medium text-gray-400">
+                              Away
+                            </div>
+                          </div>
+                          <div 
+                            className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
+                            dangerouslySetInnerHTML={{ __html: aCrest }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-4 mt-3 border-t border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleStartUpcomingMatch(m.id)}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>Drop Puck & Start Match (P1)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onSelectMatch && matchState?.id !== m.id) {
+                                onSelectMatch(m.id);
+                              }
+                              setEditingMatchId(m.id);
+                            }}
+                            className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit Fixture Details</span>
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMatchToDelete(m.id);
+                            setIsDeleteModalOpen(true);
+                          }}
+                          className="px-2.5 py-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Delete scheduled fixture"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* UPCOMING FIXTURE FOCUSED EDITOR */
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl p-5 shadow-xs border border-gray-100 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingMatchId(null)}
+                  className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Upcoming Fixtures</span>
+                </button>
+                <div className="h-4 w-px bg-gray-200" />
+                <div>
+                  <h2 className="text-base font-bold text-gray-900 truncate">
+                    Upcoming: {homeName} vs {awayName}
+                  </h2>
+                  <p className="text-[11px] text-gray-400">
+                    Configure schedule, venue, and start match when puck drops
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleStartUpcomingMatch(matchState?.id)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Drop Puck & Start Match (P1)</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-gray-100">
+              <div className="flex items-center justify-between pb-4 mb-6 border-b border-gray-100">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base">Fixture Details & Arena Settings</h3>
+                  <p className="text-xs text-gray-400">Update match venue, scheduled date, and start time</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveFixtureDetails} className="space-y-4 max-w-xl">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Arena / Stadium Venue
+                  </label>
+                  <input
+                    type="text"
+                    value={editVenue}
+                    onChange={(e) => setEditVenue(e.target.value)}
+                    placeholder="e.g. United Center"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      Scheduled Date
+                    </label>
+                    <input
+                      type="text"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                      placeholder="e.g. Wed, Oct 14, 2026"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      Puck Drop Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editTime}
+                      onChange={(e) => setEditTime(e.target.value)}
+                      placeholder="e.g. 19:00"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Official Referee
+                  </label>
+                  <input
+                    type="text"
+                    value={editReferee}
+                    onChange={(e) => setEditReferee(e.target.value)}
+                    placeholder="e.g. Furlatt E."
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={isSavingFixture}
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingFixture ? 'Saving Changes...' : 'Save Fixture Details'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMatchToDelete(matchState?.id);
+                      setIsDeleteModalOpen(true);
+                    }}
+                    className="px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    Delete Fixture
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )
+      ) : (
+        /* LIVE TAB */
+        liveMatchesCount === 0 ? (
+          /* EMPTY LIVE STATE */
+          <div className="bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-xs">
+            <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-600 border border-red-100 flex items-center justify-center mx-auto mb-4">
+              <Radio className="w-7 h-7" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-1.5">No Active Live Matches Right Now</h2>
+            <p className="text-xs text-gray-500 max-w-md mx-auto mb-6 leading-relaxed">
+              There are currently no games in progress. You can drop puck on an upcoming fixture or start a new live match right away.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {upcomingMatches.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setRemoteNavTab('upcoming')}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>View Upcoming Fixtures ({upcomingMatches.length})</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setAddPeriod('1');
+                  setIsAddModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Live Match</span>
+              </button>
+            </div>
+          </div>
+        ) : (liveMatchesCount > 1 && editingMatchId === null) ? (
+          /* MULTIPLE LIVE GAMES SELECTION HUB */
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse" />
+                  <h2 className="text-xl font-black text-gray-900 tracking-tight">Active Live Matches</h2>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200">
+                    {liveMatches.length} Active
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Multiple live games in progress. Select a match to open its live operator controls.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddPeriod('1');
+                  setIsAddModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Live Match</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              {liveMatches.map((m) => {
+                const hCrest = NHL_TEAMS[m.home?.id]?.crestSvg || m.home?.crestSvg || NHL_TEAMS.blackhawks.crestSvg;
+                const aCrest = NHL_TEAMS[m.away?.id]?.crestSvg || m.away?.crestSvg || NHL_TEAMS.penguins.crestSvg;
+                const origIdx = matches.findIndex(orig => orig.id === m.id);
+
+                return (
+                  <div
+                    key={m.id}
+                    className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/90 shadow-xs hover:border-gray-300 transition-all"
+                  >
+                    <div className="flex items-center justify-between gap-3 pb-3 mb-4 border-b border-gray-100 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+                          LIVE • P{m.period || '1'}
+                        </span>
+                        <span className="text-gray-500 font-medium truncate">
+                          {m.venue || 'Arena'}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono font-bold text-gray-400">
+                        Match #{origIdx + 1}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-7 items-center gap-3 py-2">
+                      <div className="col-span-3 flex items-center gap-3">
+                        <div 
+                          className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
+                          dangerouslySetInnerHTML={{ __html: hCrest }}
+                        />
+                        <div className="min-w-0">
+                          <div className="font-bold text-gray-900 text-base truncate">
+                            {m.home?.name || 'Home Team'}
+                          </div>
+                          <div className="text-[11px] font-medium text-gray-400">
+                            SOG: <strong className="text-gray-600">{m.home?.shots ?? '—'}</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="col-span-1 text-center">
+                        <div className="text-2xl sm:text-3xl font-black font-mono text-gray-900 tracking-tight">
+                          {m.home?.score ?? 0} - {m.away?.score ?? 0}
+                        </div>
+                        <div className="text-[9px] font-bold uppercase tracking-wider text-red-600 mt-0.5">
+                          Period {m.period || '1'}
+                        </div>
+                      </div>
+
+                      <div className="col-span-3 flex items-center justify-end gap-3 text-right">
+                        <div className="min-w-0">
+                          <div className="font-bold text-gray-900 text-base truncate">
+                            {m.away?.name || 'Away Team'}
+                          </div>
+                          <div className="text-[11px] font-medium text-gray-400">
+                            SOG: <strong className="text-gray-600">{m.away?.shots ?? '—'}</strong>
+                          </div>
+                        </div>
+                        <div 
+                          className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
+                          dangerouslySetInnerHTML={{ __html: aCrest }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 pt-4 mt-3 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onSelectMatch && matchState?.id !== m.id) {
+                            onSelectMatch(m.id);
+                          }
+                          setEditingMatchId(m.id);
+                        }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Radio className="w-3.5 h-3.5" />
+                        <span>Open Live Operator Console</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMatchToDelete(m.id);
+                          setIsDeleteModalOpen(true);
+                        }}
+                        className="px-2.5 py-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Delete</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* LIVE OPERATOR CONSOLE */
+          <div className="space-y-6">
+            {liveMatchesCount > 1 && editingMatchId !== null && (
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setEditingMatchId(null)}
+                  className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>All Live Games ({liveMatchesCount})</span>
+                </button>
+                <span className="text-xs font-bold text-gray-500">
+                  Controlling: <strong className="text-gray-900">{homeName} vs {awayName}</strong>
+                </span>
+              </div>
+            )}
+
+            {/* Clean Live Match Header Card */}
+            <div className="bg-gradient-to-r from-gray-900 via-slate-900 to-gray-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-gray-800">
+              <div className="flex items-center justify-between gap-3 pb-3 mb-3 border-b border-gray-800/80 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                    PERIOD {matchState?.period || '1'}
+                  </span>
+                  <span className="text-gray-400 font-medium">
+                    {matchState?.venue || 'United Center'}
+                  </span>
+                </div>
+                <div className="font-mono text-sm font-bold text-gray-300">
+                  {formattedTime}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-7 items-center gap-3 py-1">
+                <div className="col-span-3 flex items-center gap-3">
+                  <div 
+                    className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
+                    dangerouslySetInnerHTML={{ __html: homeCrest }}
+                  />
+                  <div className="min-w-0">
+                    <div className="font-bold text-white text-base sm:text-lg truncate">
+                      {homeName}
+                    </div>
+                    <div className="text-[11px] font-medium text-gray-400">
+                      SOG: <strong className="text-gray-200">{homeShots}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-span-1 text-center">
+                  <div className="text-3xl sm:text-4xl font-black font-mono text-white tracking-tight">
+                    {homeScore} - {awayScore}
+                  </div>
+                </div>
+
+                <div className="col-span-3 flex items-center justify-end gap-3 text-right">
+                  <div className="min-w-0">
+                    <div className="font-bold text-white text-base sm:text-lg truncate">
+                      {awayName}
+                    </div>
+                    <div className="text-[11px] font-medium text-gray-400">
+                      SOG: <strong className="text-gray-200">{awayShots}</strong>
+                    </div>
+                  </div>
+                  <div 
+                    className="w-10 h-10 shrink-0 flex items-center justify-center drop-shadow-xs"
+                    dangerouslySetInnerHTML={{ __html: awayCrest }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Console Mode Selector */}
+            <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-2xl border border-gray-200">
+              <button
+                onClick={() => setConsoleTab('operator')}
+                className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
+                  consoleTab === 'operator'
+                    ? 'bg-white text-gray-900 shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <span>Live Operator Console</span>
+              </button>
+
+              <button
+                onClick={() => setConsoleTab('admin')}
+                className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  consoleTab === 'admin'
+                    ? 'bg-white text-blue-600 shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <span>Admin Master Controls</span>
+                {isAdmin && (
+                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-extrabold rounded-md">
+                    ADMIN
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {consoleTab === 'admin' ? (
+              <AdminPanel
+                matchState={matchState}
+                scoreboard={scoreboard}
+                remainingSeconds={remainingSeconds}
+                isRunning={isRunning}
+                currentUser={currentUser}
+              />
+            ) : (
+              <>
+                {/* 1. Precision Game Clock Controls */}
+                {renderClockControls()}
+
+                {/* 2. Live Penalty Tracker & Power Plays */}
+                <PenaltyTracker 
+                  matchState={matchState} 
+                  isOperator={true} 
+                  onCancelPenalty={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay(null)} 
+                />
+
+                {/* 3. Period-by-Period Box Score Table */}
+                <BoxScoreTable matchState={matchState} />
+
+                {/* 4. Dual Team Stations: Goals & Shots */}
+                {renderDualTeamStations(false)}
+
+                {/* 5. Live Match Timeline & Incidents */}
+                {renderTimelineSection()}
+              </>
+            )}
+          </div>
+        )
       )}
 
       {/* --- MODAL 1: ADD MATCH MODAL --- */}
