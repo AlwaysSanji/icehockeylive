@@ -83,8 +83,36 @@ export function RemoteView({
   const [selectedMatchToDelete, setSelectedMatchToDelete] = useState(null);
   const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
 
-  // Switch Match Modal State
+  // Switch Match Modal State & Active Match Filter ('all', 'live', 'upcoming', 'finished')
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
+  const [matchFilter, setMatchFilter] = useState('all');
+
+  // Categorize matches by status
+  const getMatchCategory = (m) => {
+    if (!m) return 'live';
+    const period = String(m.period || '').toUpperCase();
+    const status = String(m.status || '').toLowerCase();
+    const badge = String(m.statusBadge || '').toUpperCase();
+
+    if (period === 'FT' || status === 'finished' || status === 'ft' || badge === 'FT') {
+      return 'finished';
+    }
+    if (period === 'UPCOMING' || status === 'upcoming' || badge === 'SCHED' || (!m.period && m.dateTime)) {
+      return 'upcoming';
+    }
+    return 'live';
+  };
+
+  const liveMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'live').length, [matches]);
+  const upcomingMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'upcoming').length, [matches]);
+  const finishedMatchesCount = useMemo(() => matches.filter(m => getMatchCategory(m) === 'finished').length, [matches]);
+
+  const filteredMatchesList = useMemo(() => {
+    if (matchFilter === 'live') return matches.filter(m => getMatchCategory(m) === 'live');
+    if (matchFilter === 'upcoming') return matches.filter(m => getMatchCategory(m) === 'upcoming');
+    if (matchFilter === 'finished') return matches.filter(m => getMatchCategory(m) === 'finished');
+    return matches;
+  }, [matches, matchFilter]);
 
   // Quick Incident Logger & Timeline Editor Modal State
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
@@ -539,11 +567,42 @@ export function RemoteView({
                 className="bg-transparent text-xs font-bold text-gray-100 outline-none cursor-pointer max-w-[160px] sm:max-w-[200px] truncate"
                 title="Select active match to control"
               >
-                {matches.map((m, idx) => (
-                  <option key={m.id} value={m.id} className="bg-gray-900 text-white">
-                    Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'}
-                  </option>
-                ))}
+                {liveMatchesCount > 0 && (
+                  <optgroup label={`Live Matches (${liveMatchesCount})`} className="bg-gray-900 text-red-400 font-bold">
+                    {matches.filter(m => getMatchCategory(m) === 'live').map((m) => {
+                      const idx = matches.findIndex(orig => orig.id === m.id);
+                      return (
+                        <option key={m.id} value={m.id} className="bg-gray-900 text-white">
+                          [LIVE] Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} ({m.home?.score ?? 0}-{m.away?.score ?? 0})
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                )}
+                {upcomingMatchesCount > 0 && (
+                  <optgroup label={`Upcoming Matches (${upcomingMatchesCount})`} className="bg-gray-900 text-amber-400 font-bold">
+                    {matches.filter(m => getMatchCategory(m) === 'upcoming').map((m) => {
+                      const idx = matches.findIndex(orig => orig.id === m.id);
+                      return (
+                        <option key={m.id} value={m.id} className="bg-gray-900 text-white">
+                          [UPCOMING] Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                )}
+                {finishedMatchesCount > 0 && (
+                  <optgroup label={`Finished Matches (${finishedMatchesCount})`} className="bg-gray-900 text-emerald-400 font-bold">
+                    {matches.filter(m => getMatchCategory(m) === 'finished').map((m) => {
+                      const idx = matches.findIndex(orig => orig.id === m.id);
+                      return (
+                        <option key={m.id} value={m.id} className="bg-gray-900 text-white">
+                          [FT] Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} ({m.home?.score ?? 0}-{m.away?.score ?? 0})
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                )}
               </select>
             </div>
           )}
@@ -577,7 +636,24 @@ export function RemoteView({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Status Filter for Matches */}
+          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
+            <span className="text-[11px] font-bold text-gray-500 whitespace-nowrap">Status:</span>
+            <select
+              value={matchFilter}
+              onChange={(e) => setMatchFilter(e.target.value)}
+              className="bg-transparent text-xs font-bold text-gray-900 outline-none cursor-pointer"
+              title="Filter matches by status"
+            >
+              <option value="all">All Matches ({matches.length})</option>
+              <option value="live">Live Matches ({liveMatchesCount})</option>
+              <option value="upcoming">Upcoming Matches ({upcomingMatchesCount})</option>
+              <option value="finished">Finished Matches ({finishedMatchesCount})</option>
+            </select>
+          </div>
+
+          {/* Active Match Dropdown */}
           {matches.length > 1 && (
             <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
               <span className="text-[11px] font-bold text-gray-500 whitespace-nowrap">Active Match:</span>
@@ -587,14 +663,75 @@ export function RemoteView({
                 className="bg-transparent text-xs font-bold text-gray-900 outline-none cursor-pointer max-w-[180px] sm:max-w-[220px] truncate"
                 title="Select active match to control"
               >
-                {matches.map((m, idx) => (
-                  <option key={m.id} value={m.id}>
-                    Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} ({m.home?.score ?? 0} - {m.away?.score ?? 0})
-                  </option>
-                ))}
+                {matchFilter === 'all' ? (
+                  <>
+                    {liveMatchesCount > 0 && (
+                      <optgroup label={`Live Matches (${liveMatchesCount})`}>
+                        {matches.filter(m => getMatchCategory(m) === 'live').map((m) => {
+                          const idx = matches.findIndex(orig => orig.id === m.id);
+                          return (
+                            <option key={m.id} value={m.id}>
+                              Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} ({m.home?.score ?? 0} - {m.away?.score ?? 0})
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
+                    {upcomingMatchesCount > 0 && (
+                      <optgroup label={`Upcoming Matches (${upcomingMatchesCount})`}>
+                        {matches.filter(m => getMatchCategory(m) === 'upcoming').map((m) => {
+                          const idx = matches.findIndex(orig => orig.id === m.id);
+                          return (
+                            <option key={m.id} value={m.id}>
+                              Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'}
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
+                    {finishedMatchesCount > 0 && (
+                      <optgroup label={`Finished Matches (${finishedMatchesCount})`}>
+                        {matches.filter(m => getMatchCategory(m) === 'finished').map((m) => {
+                          const idx = matches.findIndex(orig => orig.id === m.id);
+                          return (
+                            <option key={m.id} value={m.id}>
+                              Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} ({m.home?.score ?? 0} - {m.away?.score ?? 0}) [FT]
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {!filteredMatchesList.some(m => m.id === matchState?.id) && matchState && (
+                      <option value={matchState.id} disabled>
+                        [Current] {homeName} vs {awayName}
+                      </option>
+                    )}
+                    {filteredMatchesList.map((m) => {
+                      const idx = matches.findIndex(orig => orig.id === m.id);
+                      const cat = getMatchCategory(m);
+                      return (
+                        <option key={m.id} value={m.id}>
+                          Match {idx + 1}: {m.home?.name || 'Home'} vs {m.away?.name || 'Away'} {cat === 'upcoming' ? '' : `(${m.home?.score ?? 0} - {m.away?.score ?? 0})`}
+                        </option>
+                      );
+                    })}
+                  </>
+                )}
               </select>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => setIsSwitchModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold border border-gray-200 transition-colors cursor-pointer"
+            title="Browse and switch matches"
+          >
+            <span>Switch Match...</span>
+          </button>
 
           {onLogout && (
             <button
@@ -2062,7 +2199,7 @@ export function RemoteView({
         </div>
       )}
 
-      {/* --- MODAL 3: SWITCH ACTIVE MATCH MODAL --- */}
+      {/* --- MODAL 3: SWITCH ACTIVE MATCH MODAL WITH STATUS FILTERS --- */}
       {isSwitchModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
@@ -2072,7 +2209,7 @@ export function RemoteView({
                   Select Match to Control
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Choose which fixture you want to manage in the Remote Control console
+                  Filter by status and select which fixture to manage in the Remote Control console
                 </p>
               </div>
               <button
@@ -2084,10 +2221,62 @@ export function RemoteView({
               </button>
             </div>
 
+            {/* Status Filter Tabs (Square/Rounded-xl tabs, no pill capsules) */}
+            <div className="grid grid-cols-4 gap-1.5 p-1 bg-gray-100 rounded-2xl mt-4">
+              <button
+                type="button"
+                onClick={() => setMatchFilter('all')}
+                className={`py-1.5 px-2 text-xs font-bold rounded-xl transition-all cursor-pointer text-center ${
+                  matchFilter === 'all'
+                    ? 'bg-white text-gray-900 shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                All ({matches.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setMatchFilter('live')}
+                className={`py-1.5 px-2 text-xs font-bold rounded-xl transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                  matchFilter === 'live'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-red-700'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${matchFilter === 'live' ? 'bg-white' : 'bg-red-500'} animate-pulse`} />
+                Live ({liveMatchesCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setMatchFilter('upcoming')}
+                className={`py-1.5 px-2 text-xs font-bold rounded-xl transition-all cursor-pointer text-center ${
+                  matchFilter === 'upcoming'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-amber-700'
+                }`}
+              >
+                Upcoming ({upcomingMatchesCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setMatchFilter('finished')}
+                className={`py-1.5 px-2 text-xs font-bold rounded-xl transition-all cursor-pointer text-center ${
+                  matchFilter === 'finished'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-emerald-700'
+                }`}
+              >
+                Finished ({finishedMatchesCount})
+              </button>
+            </div>
+
+            {/* Filtered Matches List */}
             <div className="py-4 overflow-y-auto space-y-2.5 flex-1 max-h-[50vh]">
-              {matches && matches.length > 0 ? (
-                matches.map((m, idx) => {
+              {filteredMatchesList && filteredMatchesList.length > 0 ? (
+                filteredMatchesList.map((m, idx) => {
                   const isCurrentActive = m.id === matchState?.id;
+                  const category = getMatchCategory(m);
+                  const originalIndex = matches.findIndex(orig => orig.id === m.id);
 
                   return (
                     <div
@@ -2103,21 +2292,56 @@ export function RemoteView({
                       }`}
                     >
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-bold text-gray-400">Match {idx + 1}:</span>
-                          <span className="font-bold text-gray-900 text-sm truncate">
-                            {m.home?.name || 'Home'} <span className="font-black text-gray-800">({m.home?.score ?? 0} - {m.away?.score ?? 0})</span> {m.away?.name || 'Away'}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold text-gray-400">
+                            Match {originalIndex >= 0 ? originalIndex + 1 : idx + 1}:
                           </span>
+
+                          {/* Status Badge */}
+                          {category === 'live' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 text-red-700 border border-red-200 text-[10px] font-black uppercase tracking-wider">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+                              Live P{m.period || '1'}
+                            </span>
+                          )}
+                          {category === 'upcoming' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold uppercase tracking-wider">
+                              ⏰ Upcoming
+                            </span>
+                          )}
+                          {category === 'finished' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider">
+                              🏁 Finished (FT)
+                            </span>
+                          )}
+
+                          <span className="font-bold text-gray-900 text-sm truncate">
+                            {m.home?.name || 'Home'}
+                            {category !== 'upcoming' && (
+                              <span className="font-black text-gray-800"> ({m.home?.score ?? 0} - {m.away?.score ?? 0}) </span>
+                            )}
+                            {category === 'upcoming' && (
+                              <span className="text-gray-400 font-medium"> vs </span>
+                            )}
+                            {m.away?.name || 'Away'}
+                          </span>
+
                           {isCurrentActive && (
                             <span className="text-blue-600 font-extrabold text-[11px] shrink-0 uppercase tracking-wide">
                               ● Currently Editing
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                        <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
                           <span>{m.venue || 'Arena'}</span>
                           <span>•</span>
-                          <span>{m.period === 'FT' ? 'Finished' : (m.period === 'UPCOMING' ? 'Upcoming' : `Period ${m.period}`)}</span>
+                          <span>
+                            {category === 'finished'
+                              ? 'Full Time (FT) • Final Score'
+                              : (category === 'upcoming'
+                                  ? (m.dateTime || m.date || 'Scheduled')
+                                  : `Period ${m.period || '1'}`)}
+                          </span>
                         </div>
                       </div>
 
@@ -2135,8 +2359,22 @@ export function RemoteView({
                   );
                 })
               ) : (
-                <div className="text-center py-6 text-gray-400 text-xs">
-                  No matches available.
+                <div className="text-center py-10 px-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                  <div className="text-gray-500 font-bold text-sm mb-1">
+                    No {matchFilter === 'all' ? '' : matchFilter} matches found
+                  </div>
+                  <p className="text-xs text-gray-400 mb-3">
+                    There are currently no {matchFilter} fixtures in the match roster.
+                  </p>
+                  {matchFilter !== 'all' && (
+                    <button
+                      type="button"
+                      onClick={() => setMatchFilter('all')}
+                      className="px-3.5 py-1.5 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Show All Matches
+                    </button>
+                  )}
                 </div>
               )}
             </div>
