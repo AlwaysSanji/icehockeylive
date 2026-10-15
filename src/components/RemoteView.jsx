@@ -46,6 +46,7 @@ export function RemoteView({
   const activeMatchIndex = matches.findIndex(m => m.id === matchState?.id);
   const currentMatchNumber = activeMatchIndex >= 0 ? activeMatchIndex + 1 : 1;
   const totalMatches = Math.max(matches.length, 1);
+  const isCompleted = matchState?.period === 'FT' || matchState?.status === 'Finished' || matchState?.status === 'FT';
 
   // Lineups for incident logger
   const homeLineup = useMemo(() => getTeamLineup(homeTeamId, homeName), [homeTeamId, homeName]);
@@ -107,7 +108,7 @@ export function RemoteView({
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
         return;
       }
-      if (e.code === 'Space') {
+      if (e.code === 'Space' && !isCompleted) {
         e.preventDefault();
         if (isRunning) {
           scoreboard.pauseClock(remainingSeconds);
@@ -119,7 +120,7 @@ export function RemoteView({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isRunning, remainingSeconds, scoreboard]);
+  }, [isRunning, remainingSeconds, scoreboard, isCompleted]);
 
   // When Home Team dropdown changes in Add Modal
   const handleHomeTeamChange = (key) => {
@@ -288,8 +289,8 @@ export function RemoteView({
       setEditingIncidentId(null);
       setIncidentTeam(team);
       setIncidentType(type);
-      setIncidentMinute(formattedTime);
-      setIncidentPeriod(matchState?.period || '1');
+      setIncidentMinute(isCompleted ? '15:00' : formattedTime);
+      setIncidentPeriod(matchState?.period === 'FT' ? '3' : (matchState?.period || '1'));
       const activeLineup = team === 'home' ? homeLineup : awayLineup;
       setIncidentPlayer(activeLineup[1]?.name || '');
       setIncidentAssist(activeLineup[2]?.name || '');
@@ -437,16 +438,20 @@ export function RemoteView({
       {/* Persistent Sticky Bar when scrolling - Always shows which match is being edited */}
       <div className="sticky top-2 z-40 bg-gray-950/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-xl border border-gray-800 mb-6 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="flex items-center gap-1.5 font-bold text-blue-400 uppercase tracking-wider text-[11px] shrink-0">
-            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            Editing Match {currentMatchNumber} of {totalMatches}:
+          <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[11px] shrink-0 text-blue-400">
+            <span className={`w-2 h-2 rounded-full ${isCompleted ? 'bg-emerald-400' : 'bg-blue-500 animate-pulse'}`} />
+            {isCompleted ? `Completed Match ${currentMatchNumber} of ${totalMatches}:` : `Editing Match ${currentMatchNumber} of ${totalMatches}:`}
           </span>
           <span className="font-extrabold text-white text-sm truncate">
             {homeName} <span className="text-blue-400 font-mono">({homeScore})</span> vs <span className="text-amber-400 font-mono">({awayScore})</span> {awayName}
           </span>
           <span className="text-gray-500 hidden md:inline">•</span>
           <span className="text-gray-300 font-medium text-[11px] hidden md:inline">
-            Period {matchState?.period || '1'} • {formattedTime}
+            {isCompleted ? (
+              <span className="text-emerald-400 font-bold">Full Time (FT) • Final Score</span>
+            ) : (
+              `Period ${matchState?.period || '1'} • ${formattedTime}`
+            )}
           </span>
           <span className="text-gray-500 hidden lg:inline">•</span>
           <span className="text-gray-400 text-[11px] hidden lg:inline truncate max-w-[150px]">
@@ -543,11 +548,11 @@ export function RemoteView({
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs mb-3">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 font-extrabold uppercase tracking-wider text-[11px] border border-blue-500/30">
-                ACTIVE MATCH {currentMatchNumber} OF {totalMatches}
+                {isCompleted ? `COMPLETED MATCH ${currentMatchNumber} OF ${totalMatches}` : `ACTIVE MATCH ${currentMatchNumber} OF ${totalMatches}`}
               </span>
               <span className="text-gray-600">•</span>
               <span className="font-mono font-bold tracking-wider uppercase text-gray-300">
-                {isRunning ? 'BROADCAST CLOCK RUNNING' : 'ARENA CLOCK PAUSED'}
+                {isCompleted ? 'FULL TIME (FINISHED)' : (isRunning ? 'BROADCAST CLOCK RUNNING' : 'ARENA CLOCK PAUSED')}
               </span>
               <span className="text-gray-600">•</span>
               <span className="text-gray-400 font-medium">{matchState?.venue || 'United Center'}</span>
@@ -595,7 +600,7 @@ export function RemoteView({
             <div className="text-gray-400 text-[11px] flex items-center gap-2">
               <span>{matchState?.date || 'Scheduled'}</span>
               <span>•</span>
-              <span className="text-blue-400 font-bold">{matchState?.status || (matchState?.period === 'FT' ? 'Finished' : `Period ${matchState?.period || '1'}`)}</span>
+              <span className="text-blue-400 font-bold">{isCompleted ? 'Finished (Full Time)' : (matchState?.status || `Period ${matchState?.period || '1'}`)}</span>
             </div>
           </div>
         </div>
@@ -606,7 +611,7 @@ export function RemoteView({
           <div className="flex items-center justify-start md:justify-end gap-4 text-left md:text-right min-w-0">
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">
-                HOME TEAM {matchState?.powerPlay === 'home' && <span className="ml-1 text-amber-300 font-extrabold">• POWER PLAY</span>}
+                HOME TEAM {!isCompleted && matchState?.powerPlay === 'home' && <span className="ml-1 text-amber-300 font-extrabold">• POWER PLAY</span>}
               </div>
               <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white truncate max-w-[200px]">
                 {homeName}
@@ -629,13 +634,21 @@ export function RemoteView({
               <span>{awayScore}</span>
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">
-                Period {matchState?.period || '1'}
-              </span>
-              <span className="text-gray-600">•</span>
-              <span className="font-mono text-xs font-bold text-gray-300 tracking-wider">
-                {formattedTime}
-              </span>
+              {isCompleted ? (
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                  Final Score • Full Time (FT)
+                </span>
+              ) : (
+                <>
+                  <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">
+                    Period {matchState?.period || '1'}
+                  </span>
+                  <span className="text-gray-600">•</span>
+                  <span className="font-mono text-xs font-bold text-gray-300 tracking-wider">
+                    {formattedTime}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -647,7 +660,7 @@ export function RemoteView({
             />
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-0.5">
-                AWAY TEAM {matchState?.powerPlay === 'away' && <span className="ml-1 text-amber-300 font-extrabold">• POWER PLAY</span>}
+                AWAY TEAM {!isCompleted && matchState?.powerPlay === 'away' && <span className="ml-1 text-amber-300 font-extrabold">• POWER PLAY</span>}
               </div>
               <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white truncate max-w-[200px]">
                 {awayName}
@@ -701,166 +714,200 @@ export function RemoteView({
         </div>
       ) : (
         <div className="space-y-6">
-          {/* 3. PRECISION GAME CLOCK CONTROLS */}
-          <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
-            <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-gray-700" />
+          {/* 3. PRECISION GAME CLOCK CONTROLS (Removed for completed match) */}
+          {isCompleted ? (
+            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center font-bold text-sm shrink-0">
+                  FT
+                </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 text-base">Game Clock Control</h3>
-                  <p className="text-[11px] text-gray-400">Match {currentMatchNumber} of {totalMatches} • {homeName} vs {awayName}</p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-gray-900 text-base">Match Completed (Full Time)</h3>
+                    <span className="text-[11px] text-emerald-600 font-extrabold uppercase">● Final</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Game timer and clock controls are removed for completed fixtures. Only editing of the final score and timeline incidents is enabled.
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-[11px] font-semibold text-gray-400 hidden sm:inline">
-                  Shortcut: <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-gray-600 font-mono text-[10px]">Space</kbd> Start/Pause
-                </span>
-                <span className={`text-xs font-bold tracking-wide ${
-                  isRunning ? 'text-emerald-600 font-mono' : 'text-gray-400'
-                }`}>
-                  {isRunning ? 'COUNTING DOWN' : 'PAUSED'}
-                </span>
-              </div>
-            </div>
-
-            {/* Big Clock Display */}
-            <div className="text-center py-5 bg-gradient-to-b from-gray-900 to-slate-900 text-white rounded-2xl border border-gray-800 mb-6 shadow-inner">
-              <div className="text-6xl sm:text-7xl font-mono font-black tracking-tight text-white drop-shadow-md">
-                {formattedTime}
-              </div>
-              <div className="text-xs font-semibold text-gray-400 mt-2 uppercase tracking-wider flex items-center justify-center gap-2">
-                <span>Period {matchState?.period || '1'}</span>
-                <span>•</span>
-                <span className={isRunning ? 'text-emerald-400 font-bold' : 'text-gray-400'}>
-                  {isRunning ? 'Live Game Action' : 'Clock Stopped'}
-                </span>
-              </div>
-            </div>
-
-            {/* Main Action Buttons: Start/Pause & Presets */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-              {isRunning ? (
-                <button
-                  type="button"
-                  onClick={() => scoreboard.pauseClock(remainingSeconds)}
-                  className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-4 px-6 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-base shadow-md shadow-amber-500/20 transition-all active:scale-98 cursor-pointer"
-                >
-                  <Pause className="w-5 h-5 fill-current" />
-                  <span>Pause Clock</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={scoreboard.startClock}
-                  className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-base shadow-md shadow-emerald-600/20 transition-all active:scale-98 cursor-pointer"
-                >
-                  <Play className="w-5 h-5 fill-current" />
-                  <span>Start Clock</span>
-                </button>
-              )}
 
               <button
                 type="button"
-                onClick={() => scoreboard.resetClock(1200)}
-                className="flex items-center justify-center gap-1.5 py-4 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-2xl font-bold text-xs transition-all active:scale-98 cursor-pointer"
-                title="Reset to 20:00 regulation period"
+                onClick={() => scoreboard.setPeriod('3')}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer shrink-0"
+                title="Reopen match as Live in Period 3"
               >
-                <RotateCcw className="w-4 h-4" />
-                <span>20:00 (Period)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => scoreboard.resetClock(300)}
-                className="flex items-center justify-center gap-1.5 py-4 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-2xl font-bold text-xs transition-all active:scale-98 cursor-pointer"
-                title="Reset to 5:00 Overtime"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span>5:00 (Overtime)</span>
+                <span>Reopen Match as Live (Period 3)</span>
               </button>
             </div>
+          ) : (
+            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-gray-700" />
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-base">Game Clock Control</h3>
+                    <p className="text-[11px] text-gray-400">Match {currentMatchNumber} of {totalMatches} • {homeName} vs {awayName}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] font-semibold text-gray-400 hidden sm:inline">
+                    Shortcut: <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-gray-600 font-mono text-[10px]">Space</kbd> Start/Pause
+                  </span>
+                  <span className={`text-xs font-bold tracking-wide ${
+                    isRunning ? 'text-emerald-600 font-mono' : 'text-gray-400'
+                  }`}>
+                    {isRunning ? 'COUNTING DOWN' : 'PAUSED'}
+                  </span>
+                </div>
+              </div>
 
-            {/* Period Quick Presets & Fine Tuning */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100 text-xs font-semibold text-gray-600">
-              <div className="flex items-center gap-1.5">
-                <span className="text-gray-400 font-medium">Presets:</span>
+              {/* Big Clock Display */}
+              <div className="text-center py-5 bg-gradient-to-b from-gray-900 to-slate-900 text-white rounded-2xl border border-gray-800 mb-6 shadow-inner">
+                <div className="text-6xl sm:text-7xl font-mono font-black tracking-tight text-white drop-shadow-md">
+                  {formattedTime}
+                </div>
+                <div className="text-xs font-semibold text-gray-400 mt-2 uppercase tracking-wider flex items-center justify-center gap-2">
+                  <span>Period {matchState?.period || '1'}</span>
+                  <span>•</span>
+                  <span className={isRunning ? 'text-emerald-400 font-bold' : 'text-gray-400'}>
+                    {isRunning ? 'Live Game Action' : 'Clock Stopped'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Main Action Buttons: Start/Pause & Presets */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                {isRunning ? (
+                  <button
+                    type="button"
+                    onClick={() => scoreboard.pauseClock(remainingSeconds)}
+                    className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-4 px-6 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-base shadow-md shadow-amber-500/20 transition-all active:scale-98 cursor-pointer"
+                  >
+                    <Pause className="w-5 h-5 fill-current" />
+                    <span>Pause Clock</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={scoreboard.startClock}
+                    className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-base shadow-md shadow-emerald-600/20 transition-all active:scale-98 cursor-pointer"
+                  >
+                    <Play className="w-5 h-5 fill-current" />
+                    <span>Start Clock</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={() => scoreboard.resetClock(900)}
-                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
+                  onClick={() => scoreboard.resetClock(1200)}
+                  className="flex items-center justify-center gap-1.5 py-4 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-2xl font-bold text-xs transition-all active:scale-98 cursor-pointer"
+                  title="Reset to 20:00 regulation period"
                 >
-                  15:00 Int.
+                  <RotateCcw className="w-4 h-4" />
+                  <span>20:00 (Period)</span>
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => scoreboard.resetClock(120)}
-                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
+                  onClick={() => scoreboard.resetClock(300)}
+                  className="flex items-center justify-center gap-1.5 py-4 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-2xl font-bold text-xs transition-all active:scale-98 cursor-pointer"
+                  title="Reset to 5:00 Overtime"
                 >
-                  2:00 Minor
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scoreboard.resetClock(60)}
-                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
-                >
-                  1:00 Final
+                  <RotateCcw className="w-4 h-4" />
+                  <span>5:00 (Overtime)</span>
                 </button>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <span className="text-gray-400 font-medium">Adjust:</span>
-                <button
-                  type="button"
-                  onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 60)}
-                  className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                >
-                  +1m
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -60)}
-                  className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                >
-                  -1m
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 10)}
-                  className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                >
-                  +10s
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -10)}
-                  className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                >
-                  -10s
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 1)}
-                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                >
-                  +1s
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -1)}
-                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
-                >
-                  -1s
-                </button>
+              {/* Period Quick Presets & Fine Tuning */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100 text-xs font-semibold text-gray-600">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-400 font-medium">Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => scoreboard.resetClock(900)}
+                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
+                  >
+                    15:00 Int.
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scoreboard.resetClock(120)}
+                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
+                  >
+                    2:00 Minor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scoreboard.resetClock(60)}
+                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer"
+                  >
+                    1:00 Final
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-400 font-medium">Adjust:</span>
+                  <button
+                    type="button"
+                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 60)}
+                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+                  >
+                    +1m
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -60)}
+                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+                  >
+                    -1m
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 10)}
+                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+                  >
+                    +10s
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -10)}
+                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+                  >
+                    -10s
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, 1)}
+                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+                  >
+                    +1s
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scoreboard.adjustClockSeconds(remainingSeconds, -1)}
+                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800 font-bold cursor-pointer"
+                  >
+                    -1s
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* 4. DUAL TEAM STATIONS: GOALS, SOG & POWER PLAY */}
+          {/* 4. DUAL TEAM STATIONS: GOALS / SCORE EDITING */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="font-bold text-gray-900 text-base">Team Scoring & Shot Control</h3>
-                <p className="text-xs text-gray-400">Controlling scores for {homeName} vs {awayName}</p>
+                <h3 className="font-bold text-gray-900 text-base">
+                  {isCompleted ? 'Final Match Score Editing' : 'Team Scoring & Shot Control'}
+                </h3>
+                <p className="text-xs text-gray-400">
+                  {isCompleted
+                    ? `Editing official final scores for ${homeName} and ${awayName}`
+                    : `Controlling scores for ${homeName} vs ${awayName}`}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -881,17 +928,19 @@ export function RemoteView({
                     <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
                       HOME STATION: {homeName}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay('home')}
-                      className={`text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                        matchState?.powerPlay === 'home'
-                          ? 'text-amber-500 underline underline-offset-2'
-                          : 'text-gray-400 hover:text-gray-600'
-                      }`}
-                    >
-                      {matchState?.powerPlay === 'home' ? 'Power Play Active' : 'Toggle Power Play'}
-                    </button>
+                    {!isCompleted && (
+                      <button
+                        type="button"
+                        onClick={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay('home')}
+                        className={`text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                          matchState?.powerPlay === 'home'
+                            ? 'text-amber-500 underline underline-offset-2'
+                            : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                      >
+                        {matchState?.powerPlay === 'home' ? 'Power Play Active' : 'Toggle Power Play'}
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3 mb-4">
@@ -910,7 +959,7 @@ export function RemoteView({
                       {homeScore}
                     </div>
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                      Goals
+                      {isCompleted ? 'Final Goals' : 'Goals'}
                     </span>
                   </div>
                 </div>
@@ -942,28 +991,30 @@ export function RemoteView({
                     </button>
                   </div>
 
-                  {/* Shots on Goal Control */}
-                  <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-                    <span className="text-xs font-bold text-gray-600">
-                      Shots on Goal: <strong className="text-gray-900">{homeShots}</strong>
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={scoreboard.decrementHomeShots}
-                        className="w-7 h-7 bg-white hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-700 cursor-pointer"
-                      >
-                        -
-                      </button>
-                      <button
-                        type="button"
-                        onClick={scoreboard.incrementHomeShots}
-                        className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center font-bold cursor-pointer"
-                      >
-                        +
-                      </button>
+                  {/* Shots on Goal Control (Live match only) */}
+                  {!isCompleted && (
+                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                      <span className="text-xs font-bold text-gray-600">
+                        Shots on Goal: <strong className="text-gray-900">{homeShots}</strong>
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={scoreboard.decrementHomeShots}
+                          className="w-7 h-7 bg-white hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-700 cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <button
+                          type="button"
+                          onClick={scoreboard.incrementHomeShots}
+                          className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center font-bold cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Quick Incident Button */}
                   <button
@@ -983,17 +1034,19 @@ export function RemoteView({
                     <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">
                       AWAY STATION: {awayName}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay('away')}
-                      className={`text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                        matchState?.powerPlay === 'away'
-                          ? 'text-amber-500 underline underline-offset-2'
-                          : 'text-gray-400 hover:text-gray-600'
-                      }`}
-                    >
-                      {matchState?.powerPlay === 'away' ? 'Power Play Active' : 'Toggle Power Play'}
-                    </button>
+                    {!isCompleted && (
+                      <button
+                        type="button"
+                        onClick={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay('away')}
+                        className={`text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                          matchState?.powerPlay === 'away'
+                            ? 'text-amber-500 underline underline-offset-2'
+                            : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                      >
+                        {matchState?.powerPlay === 'away' ? 'Power Play Active' : 'Toggle Power Play'}
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3 mb-4">
@@ -1012,7 +1065,7 @@ export function RemoteView({
                       {awayScore}
                     </div>
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                      Goals
+                      {isCompleted ? 'Final Goals' : 'Goals'}
                     </span>
                   </div>
                 </div>
@@ -1044,28 +1097,30 @@ export function RemoteView({
                     </button>
                   </div>
 
-                  {/* Shots on Goal Control */}
-                  <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-                    <span className="text-xs font-bold text-gray-600">
-                      Shots on Goal: <strong className="text-gray-900">{awayShots}</strong>
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={scoreboard.decrementAwayShots}
-                        className="w-7 h-7 bg-white hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-700 cursor-pointer"
-                      >
-                        -
-                      </button>
-                      <button
-                        type="button"
-                        onClick={scoreboard.incrementAwayShots}
-                        className="w-7 h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex items-center justify-center font-bold cursor-pointer"
-                      >
-                        +
-                      </button>
+                  {/* Shots on Goal Control (Live match only) */}
+                  {!isCompleted && (
+                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                      <span className="text-xs font-bold text-gray-600">
+                        Shots on Goal: <strong className="text-gray-900">{awayShots}</strong>
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={scoreboard.decrementAwayShots}
+                          className="w-7 h-7 bg-white hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-700 cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <button
+                          type="button"
+                          onClick={scoreboard.incrementAwayShots}
+                          className="w-7 h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex items-center justify-center font-bold cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Quick Incident Button */}
                   <button
@@ -1271,9 +1326,23 @@ export function RemoteView({
 
           {/* 6. PERIOD & GAME STATE SWITCHER */}
           <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
-            <h3 className="font-bold text-gray-900 text-base mb-3">
-              Period & Game State Selection
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">
+                  {isCompleted ? 'Match Status: Finished (Full Time)' : 'Period & Game State Selection'}
+                </h3>
+                <p className="text-xs text-gray-400">
+                  {isCompleted
+                    ? 'Match is closed at Full Time. Select an active period (1, 2, 3, OT) to reopen live game tracking.'
+                    : 'Switch game period or conclude match at Full Time.'}
+                </p>
+              </div>
+              {isCompleted && (
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl self-start sm:self-auto">
+                  Completed Match
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               {['1', '2', '3', 'OT', 'SO', 'FT'].map((periodKey) => {
                 const isSelected = String(matchState?.period) === periodKey;
@@ -1296,76 +1365,80 @@ export function RemoteView({
             </div>
           </div>
 
-          {/* 6. QUICK MATCH PRESETS */}
-          <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-base">Quick Arena Presets</h3>
-                <p className="text-xs text-gray-400">Instantly switch team matchups and home venues</p>
+          {/* 7. QUICK MATCH PRESETS (Live matches only) */}
+          {!isCompleted && (
+            <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base">Quick Arena Presets</h3>
+                  <p className="text-xs text-gray-400">Instantly switch team matchups and home venues</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <button
+                  type="button"
+                  onClick={() => applyPresetMatchup('blackhawks', 'penguins')}
+                  className="p-3 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/30 text-left transition-all cursor-pointer"
+                >
+                  <div className="text-xs font-bold text-gray-900">Blackhawks vs Penguins</div>
+                  <div className="text-[11px] text-gray-500">United Center</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPresetMatchup('jets', 'wild')}
+                  className="p-3 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/30 text-left transition-all cursor-pointer"
+                >
+                  <div className="text-xs font-bold text-gray-900">Jets vs Wild</div>
+                  <div className="text-[11px] text-gray-500">Canada Life Centre</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPresetMatchup('stars', 'avalanche')}
+                  className="p-3 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/30 text-left transition-all cursor-pointer"
+                >
+                  <div className="text-xs font-bold text-gray-900">Stars vs Avalanche</div>
+                  <div className="text-[11px] text-gray-500">American Airlines Center</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPresetMatchup('predators', 'knights')}
+                  className="p-3 rounded-2xl border border-gray-200 hover:border-yellow-500 hover:bg-yellow-50/30 text-left transition-all cursor-pointer"
+                >
+                  <div className="text-xs font-bold text-gray-900">Predators vs Golden Knights</div>
+                  <div className="text-[11px] text-gray-500">Bridgestone Arena</div>
+                </button>
               </div>
             </div>
+          )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <button
-                type="button"
-                onClick={() => applyPresetMatchup('blackhawks', 'penguins')}
-                className="p-3 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/30 text-left transition-all cursor-pointer"
-              >
-                <div className="text-xs font-bold text-gray-900">Blackhawks vs Penguins</div>
-                <div className="text-[11px] text-gray-500">United Center</div>
-              </button>
+          {/* 8. RESET CURRENT MATCH (Live matches only) */}
+          {!isCompleted && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 bg-white rounded-3xl border border-gray-100 shadow-xs">
+              <div>
+                <h4 className="font-bold text-base text-gray-900">
+                  Reset Current Game Scores & Clock
+                </h4>
+                <p className="text-xs text-gray-400">
+                  Reset scores to 0 - 0, period to 1, and clock back to 20:00 across all displays
+                </p>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => applyPresetMatchup('jets', 'wild')}
-                className="p-3 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/30 text-left transition-all cursor-pointer"
-              >
-                <div className="text-xs font-bold text-gray-900">Jets vs Wild</div>
-                <div className="text-[11px] text-gray-500">Canada Life Centre</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => applyPresetMatchup('stars', 'avalanche')}
-                className="p-3 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/30 text-left transition-all cursor-pointer"
-              >
-                <div className="text-xs font-bold text-gray-900">Stars vs Avalanche</div>
-                <div className="text-[11px] text-gray-500">American Airlines Center</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => applyPresetMatchup('predators', 'knights')}
-                className="p-3 rounded-2xl border border-gray-200 hover:border-yellow-500 hover:bg-yellow-50/30 text-left transition-all cursor-pointer"
-              >
-                <div className="text-xs font-bold text-gray-900">Predators vs Golden Knights</div>
-                <div className="text-[11px] text-gray-500">Bridgestone Arena</div>
-              </button>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setResetConfirmOpen(true)}
+                  className="px-5 py-3 bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-600 font-bold text-sm rounded-2xl transition-all border border-gray-200 hover:border-red-200 cursor-pointer"
+                  title="Reset scores and start a fresh game"
+                >
+                  <span>Reset Game</span>
+                </button>
+              </div>
             </div>
-          </div>
-
-          {/* 7. RESET CURRENT MATCH */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 bg-white rounded-3xl border border-gray-100 shadow-xs">
-            <div>
-              <h4 className="font-bold text-base text-gray-900">
-                Reset Current Game Scores & Clock
-              </h4>
-              <p className="text-xs text-gray-400">
-                Reset scores to 0 - 0, period to 1, and clock back to 20:00 across all displays
-              </p>
-            </div>
-
-            <div>
-              <button
-                type="button"
-                onClick={() => setResetConfirmOpen(true)}
-                className="px-5 py-3 bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-600 font-bold text-sm rounded-2xl transition-all border border-gray-200 hover:border-red-200 cursor-pointer"
-                title="Reset scores and start a fresh game"
-              >
-                <span>Reset Game</span>
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -2143,14 +2216,16 @@ export function RemoteView({
                     <label className="block text-[11px] font-bold text-gray-600 uppercase">
                       Clock Time
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setIncidentMinute(formattedTime)}
-                      className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer"
-                      title="Insert current countdown clock time"
-                    >
-                      Now ({formattedTime})
-                    </button>
+                    {!isCompleted && (
+                      <button
+                        type="button"
+                        onClick={() => setIncidentMinute(formattedTime)}
+                        className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer"
+                        title="Insert current countdown clock time"
+                      >
+                        Now ({formattedTime})
+                      </button>
+                    )}
                   </div>
                   <input
                     type="text"

@@ -751,9 +751,18 @@ export async function adjustClockSeconds(currentState, currentRemaining, delta) 
 
 // Period controls
 export async function setMatchPeriod(currentState, newPeriod) {
+  const isFinished = newPeriod === 'FT';
   const updatedState = {
     ...currentState,
-    period: newPeriod
+    period: newPeriod,
+    status: isFinished ? 'Finished' : (newPeriod === 'UPCOMING' ? 'Upcoming' : 'Live'),
+    statusBadge: isFinished ? 'FT' : (newPeriod === 'UPCOMING' ? (currentState.time || '19:00') : `P${newPeriod}`),
+    clock: isFinished ? {
+      ...currentState.clock,
+      running: false,
+      remainingSeconds: 0,
+      lastUpdatedAt: Date.now()
+    } : currentState.clock
   };
   await updateMatchState(updatedState);
 }

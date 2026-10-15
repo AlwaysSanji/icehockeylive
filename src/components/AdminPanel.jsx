@@ -3,8 +3,16 @@ import { Check } from 'lucide-react';
 import { getTeamLineup } from '../constants/hockeyData';
 
 export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning }) {
-  const [activeTab, setActiveTab] = useState('time'); // 'time', 'score', 'schedule', 'timeline'
+  const isCompleted = matchState?.period === 'FT' || matchState?.status === 'Finished' || matchState?.status === 'FT';
+  const [activeTab, setActiveTab] = useState(() => isCompleted ? 'score' : 'time'); // 'time', 'score', 'schedule', 'timeline'
   const [notification, setNotification] = useState('');
+
+  // Switch to score tab if match becomes completed
+  useEffect(() => {
+    if (isCompleted && (activeTab === 'time' || activeTab === 'schedule')) {
+      setActiveTab('score');
+    }
+  }, [isCompleted, activeTab]);
 
   // 1. Time Correction State
   const [inputMinutes, setInputMinutes] = useState(() => Math.floor(remainingSeconds / 60));
@@ -229,16 +237,18 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
 
         {/* Admin Navigation Tabs */}
         <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl">
-          <button
-            onClick={() => setActiveTab('time')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'time'
-                ? 'bg-white text-blue-600 shadow-xs'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <span>Correct Time</span>
-          </button>
+          {!isCompleted && (
+            <button
+              onClick={() => setActiveTab('time')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'time'
+                  ? 'bg-white text-blue-600 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <span>Correct Time</span>
+            </button>
+          )}
 
           <button
             onClick={() => setActiveTab('score')}
@@ -248,19 +258,21 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            <span>Change Score</span>
+            <span>{isCompleted ? 'Edit Final Score' : 'Change Score'}</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('schedule')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'schedule'
-                ? 'bg-white text-blue-600 shadow-xs'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <span>Change Schedule</span>
-          </button>
+          {!isCompleted && (
+            <button
+              onClick={() => setActiveTab('schedule')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'schedule'
+                  ? 'bg-white text-blue-600 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <span>Change Schedule</span>
+            </button>
+          )}
 
           <button
             onClick={() => setActiveTab('timeline')}
@@ -279,7 +291,7 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
       <div className="mt-4 p-4 bg-slate-900 text-white rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div>
           <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">
-            Currently Editing Match Fixture
+            {isCompleted ? 'Editing Completed Match Fixture' : 'Currently Editing Match Fixture'}
           </div>
           <div className="text-base font-black text-white">
             {matchState.home?.name || 'Home Team'} <span className="text-blue-400 font-mono">({matchState.home?.score ?? 0})</span> vs <span className="text-amber-400 font-mono">({matchState.away?.score ?? 0})</span> {matchState.away?.name || 'Away Team'}
@@ -288,7 +300,7 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
         <div className="flex items-center gap-2 text-gray-300 font-mono text-[11px]">
           <span>{matchState.venue || 'Arena'}</span>
           <span>•</span>
-          <span className="text-emerald-400 font-bold">{matchState.status || (matchState.period === 'FT' ? 'Finished' : `Period ${matchState.period || '1'}`)}</span>
+          <span className="text-emerald-400 font-bold">{isCompleted ? 'Finished (Full Time)' : (matchState.status || `Period ${matchState.period || '1'}`)}</span>
           <span>•</span>
           <span className="text-gray-400 font-sans">ID: {matchState.id || 'active'}</span>
         </div>
@@ -473,10 +485,10 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
               <span className="text-xs font-bold text-red-700 uppercase tracking-wider block mb-2">
                 {matchState.home?.name || 'Home Team'}
               </span>
-              <div className="grid grid-cols-2 gap-3">
+              <div className={isCompleted ? "w-full" : "grid grid-cols-2 gap-3"}>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-                    Total Score
+                    {isCompleted ? 'Final Match Score' : 'Total Score'}
                   </label>
                   <input
                     type="number"
@@ -486,18 +498,20 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
                     className="w-full text-center font-mono font-black text-2xl py-2 bg-white border border-gray-200 rounded-xl focus:border-red-500 outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-                    Shots on Goal
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={homeShots}
-                    onChange={(e) => setHomeShots(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    className="w-full text-center font-mono font-bold text-xl py-2 bg-white border border-gray-200 rounded-xl focus:border-red-500 outline-none"
-                  />
-                </div>
+                {!isCompleted && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1">
+                      Shots on Goal
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={homeShots}
+                      onChange={(e) => setHomeShots(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      className="w-full text-center font-mono font-bold text-xl py-2 bg-white border border-gray-200 rounded-xl focus:border-red-500 outline-none"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -506,10 +520,10 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
               <span className="text-xs font-bold text-yellow-700 uppercase tracking-wider block mb-2">
                 {matchState.away?.name || 'Away Team'}
               </span>
-              <div className="grid grid-cols-2 gap-3">
+              <div className={isCompleted ? "w-full" : "grid grid-cols-2 gap-3"}>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-                    Total Score
+                    {isCompleted ? 'Final Match Score' : 'Total Score'}
                   </label>
                   <input
                     type="number"
@@ -519,18 +533,20 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
                     className="w-full text-center font-mono font-black text-2xl py-2 bg-white border border-gray-200 rounded-xl focus:border-yellow-500 outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-                    Shots on Goal
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={awayShots}
-                    onChange={(e) => setAwayShots(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    className="w-full text-center font-mono font-bold text-xl py-2 bg-white border border-gray-200 rounded-xl focus:border-yellow-500 outline-none"
-                  />
-                </div>
+                {!isCompleted && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1">
+                      Shots on Goal
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={awayShots}
+                      onChange={(e) => setAwayShots(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      className="w-full text-center font-mono font-bold text-xl py-2 bg-white border border-gray-200 rounded-xl focus:border-yellow-500 outline-none"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
