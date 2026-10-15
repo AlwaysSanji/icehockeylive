@@ -11,6 +11,8 @@ import { NHL_TEAMS, NHL_STANDINGS, NHL_LINEUPS, getTeamLineup } from '../constan
 import { useGameClock } from '../hooks/useGameClock';
 import { formatPeriodName } from '../utils/timeFormatter';
 import { MatchTimeline } from './MatchTimeline';
+import { BoxScoreTable } from './BoxScoreTable';
+import { PenaltyTracker } from './PenaltyTracker';
 
 export function MatchDetailView({ 
   matchState, 
@@ -310,54 +312,11 @@ export function MatchDetailView({
             {/* 1. OVERVIEW TAB */}
             {activeTab === 'Overview' && (
               <div className="space-y-6">
-                {/* Period Scoring Breakdown */}
-                <div>
-                  <h3 className="text-xs font-bold text-gray-900 mb-3 uppercase tracking-wider">
-                    Period Scoring Breakdown
-                  </h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                      <thead>
-                        <tr className="border-b border-gray-100 text-gray-400 text-xs">
-                          <th className="py-2 font-medium">Team</th>
-                          <th className="py-2 text-center font-medium">1st</th>
-                          <th className="py-2 text-center font-medium">2nd</th>
-                          <th className="py-2 text-center font-medium">3rd</th>
-                          {(matchState.periodScores?.ot?.home > 0 || matchState.periodScores?.ot?.away > 0 || matchState.period === 'OT') && (
-                            <th className="py-2 text-center font-medium">OT</th>
-                          )}
-                          <th className="py-2 text-center font-bold text-gray-800">T</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        <tr>
-                          <td className="py-3 font-semibold text-gray-900">
-                            {homeName}
-                          </td>
-                          <td className="py-3 text-center text-gray-700">{matchState.periodScores?.p1?.home ?? 0}</td>
-                          <td className="py-3 text-center text-gray-700">{matchState.periodScores?.p2?.home ?? 0}</td>
-                          <td className="py-3 text-center text-gray-700">{matchState.periodScores?.p3?.home ?? 0}</td>
-                          {(matchState.periodScores?.ot?.home > 0 || matchState.periodScores?.ot?.away > 0 || matchState.period === 'OT') && (
-                            <td className="py-3 text-center text-gray-700">{matchState.periodScores?.ot?.home ?? 0}</td>
-                          )}
-                          <td className="py-3 text-center font-black text-gray-900 text-base">{homeScore}</td>
-                        </tr>
-                        <tr>
-                          <td className="py-3 font-semibold text-gray-900">
-                            {awayName}
-                          </td>
-                          <td className="py-3 text-center text-gray-700">{matchState.periodScores?.p1?.away ?? 0}</td>
-                          <td className="py-3 text-center text-gray-700">{matchState.periodScores?.p2?.away ?? 0}</td>
-                          <td className="py-3 text-center text-gray-700">{matchState.periodScores?.p3?.away ?? 0}</td>
-                          {(matchState.periodScores?.ot?.home > 0 || matchState.periodScores?.ot?.away > 0 || matchState.period === 'OT') && (
-                            <td className="py-3 text-center text-gray-700">{matchState.periodScores?.ot?.away ?? 0}</td>
-                          )}
-                          <td className="py-3 text-center font-black text-gray-900 text-base">{awayScore}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                {/* Live Penalty Status */}
+                <PenaltyTracker matchState={matchState} />
+
+                {/* Period Scoring Breakdown Box Score */}
+                <BoxScoreTable matchState={matchState} />
 
                 {/* Match Goal Events Timeline */}
                 <div>

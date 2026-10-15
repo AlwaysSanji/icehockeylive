@@ -1,341 +1,278 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Calendar, Search } from 'lucide-react';
-import { NHL_LEAGUE_CARDS_TODAY, NHL_LEAGUE_CARDS_TOMORROW, NHL_TEAMS } from '../constants/hockeyData';
+import { Calendar, Radio, CheckCircle2, Plus, ArrowRight, Shield, Zap } from 'lucide-react';
+import { NHL_TEAMS } from '../constants/hockeyData';
 import { useGameClock } from '../hooks/useGameClock';
+import { UnifiedNavbar } from './UnifiedNavbar';
+import { LeagueManager } from './LeagueManager';
+import { BoxScoreTable } from './BoxScoreTable';
+import { PenaltyTracker } from './PenaltyTracker';
 
-export function ScoreboardList({ liveMatchState, matches = [], onSelectMatch }) {
-  const [selectedDate, setSelectedDate] = useState('Today'); // 'Today' or 'Tomorrow'
-  const [activeFilter, setActiveFilter] = useState('All'); // 'All', 'Live', 'Finished', 'Upcoming'
-  const [searchQuery, setSearchQuery] = useState('');
-
+export function ScoreboardList({ 
+  liveMatchState, 
+  matches = [], 
+  onSelectMatch,
+  activeNavTab = 'live',
+  onNavTabChange,
+  canManageMatches = false,
+  onOpenAddMatch,
+  onOpenDeleteMatch,
+  onOpenSearch,
+  currentUser,
+  currentView = 'list',
+  onViewChange,
+  onLogout,
+  onOpenLogin
+}) {
   // Clock for the live match row
-  const { formattedTime, isRunning } = useGameClock(liveMatchState.clock);
+  const { formattedTime, isRunning } = useGameClock(liveMatchState?.clock);
 
   // Status text for live match
   const liveStatusText = useMemo(() => {
-    const period = String(liveMatchState.period).toUpperCase();
+    if (!liveMatchState) return 'LIVE';
+    const period = String(liveMatchState.period || '1').toUpperCase();
     if (period === 'FT') return 'FT';
     if (isRunning) {
       return `LIVE ${formattedTime}`;
     }
     return `P${period} ${formattedTime}`;
-  }, [liveMatchState.period, isRunning, formattedTime]);
+  }, [liveMatchState, isRunning, formattedTime]);
 
-  // Handle date switching
-  const handlePreviousDate = () => {
-    if (selectedDate === 'Tomorrow') {
-      setSelectedDate('Today');
+  // Categorize matches by status
+  const getMatchCategory = (m) => {
+    if (!m) return 'live';
+    const period = String(m.period || '').toUpperCase();
+    const status = String(m.status || '').toLowerCase();
+    const badge = String(m.statusBadge || '').toUpperCase();
+
+    if (period === 'FT' || status === 'finished' || status === 'ft' || badge === 'FT') {
+      return 'finished';
     }
+    if (period === 'UPCOMING' || status === 'upcoming' || badge === 'SCHED' || (!m.period && m.dateTime)) {
+      return 'upcoming';
+    }
+    return 'live';
   };
 
-  const handleNextDate = () => {
-    if (selectedDate === 'Today') {
-      setSelectedDate('Tomorrow');
-    }
-  };
+  const liveMatches = useMemo(() => matches.filter(m => getMatchCategory(m) === 'live'), [matches]);
+  const upcomingMatches = useMemo(() => matches.filter(m => getMatchCategory(m) === 'upcoming'), [matches]);
+  const finishedMatches = useMemo(() => matches.filter(m => getMatchCategory(m) === 'finished'), [matches]);
 
-  // Build unified fixture objects from dynamic matches
-  const allMatchFixtures = useMemo(() => {
-    const list = matches && matches.length > 0 ? matches : [liveMatchState];
+  // Current category matches
+  const displayedMatches = useMemo(() => {
+    if (activeNavTab === 'live') return liveMatches;
+    if (activeNavTab === 'upcoming') return upcomingMatches;
+    if (activeNavTab === 'finished') return finishedMatches;
+    return matches;
+  }, [activeNavTab, liveMatches, upcomingMatches, finishedMatches, matches]);
 
-    return list.map(m => {
-      // If this match is currently active, merge real-time live clock and scores
-      const isCurrentActive = liveMatchState && m.id === liveMatchState.id;
-      const target = isCurrentActive ? { ...m, ...liveMatchState } : m;
-
-      const homeId = target.home?.id || 'blackhawks';
-      const awayId = target.away?.id || 'penguins';
-
-      const homeTeam = {
-        name: target.home?.name || 'Home Team',
-        crestSvg: NHL_TEAMS[homeId]?.crestSvg || target.home?.crestSvg || `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="50" r="46" fill="#1e40af"/><text x="50" y="58" font-size="28" font-weight="900" fill="#ffffff" text-anchor="middle">H</text></svg>`
-      };
-
-      const awayTeam = {
-        name: target.away?.name || 'Away Team',
-        crestSvg: NHL_TEAMS[awayId]?.crestSvg || target.away?.crestSvg || `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="50" r="46" fill="#ca8a04"/><text x="50" y="58" font-size="28" font-weight="900" fill="#ffffff" text-anchor="middle">A</text></svg>`
-      };
-
-      const isFinished = target.period === 'FT' || target.status === 'Finished';
-      const isUpcoming = target.period === 'UPCOMING' || target.status === 'Upcoming';
-      const isLive = !isFinished && !isUpcoming;
-
-      let badge = target.statusBadge || 'FT';
-      if (isFinished) {
-        badge = 'FT';
-      } else if (isUpcoming) {
-        badge = target.statusBadge || '19:00';
-      } else if (isCurrentActive && isRunning) {
-        badge = liveStatusText;
-      } else {
-        badge = `P${target.period || '1'}`;
-      }
-
-      const dateStr = target.date || target.dateTime || 'Wed, Oct 14, 2026';
-      const isTomorrow = dateStr.includes('Oct 15') || dateStr.toLowerCase().includes('tomorrow') || dateStr.toLowerCase().includes('thu');
-
-      return {
-        id: target.id,
-        homeTeam,
-        awayTeam,
-        homeScore: isUpcoming ? '-' : (target.home?.score ?? 0),
-        awayScore: isUpcoming ? '-' : (target.away?.score ?? 0),
-        venue: target.venue || 'United Center',
-        date: target.dateTime || target.date || 'Wed, Oct 14, 2026',
-        statusBadge: badge,
-        status: isFinished ? 'Finished' : (isUpcoming ? 'Upcoming' : 'Live'),
-        isLive,
-        isTomorrow,
-        isLiveSync: true
-      };
-    });
-  }, [matches, liveMatchState, isRunning, liveStatusText]);
-
-  // Base fixtures depending on selected date
-  const activeCards = useMemo(() => {
-    const isTomorrowView = selectedDate === 'Tomorrow';
-    const fixturesForDate = allMatchFixtures.filter(f => isTomorrowView ? f.isTomorrow : !f.isTomorrow);
-
-    if (fixturesForDate.length === 0) return [];
-
-    return [
-      {
-        country: 'USA',
-        league: 'NHL',
-        fixtures: fixturesForDate
-      }
-    ];
-  }, [selectedDate, allMatchFixtures]);
-
-  // Filter cards by tab and search query
-  const filteredCards = useMemo(() => {
-    return activeCards.map(card => {
-      const filteredFixtures = card.fixtures.filter(fixture => {
-        // Tab filtering only applies when on Today
-        if (selectedDate === 'Today') {
-          if (activeFilter === 'Live' && !fixture.isLive) return false;
-          if (activeFilter === 'Finished' && fixture.status !== 'Finished' && fixture.statusBadge !== 'FT') return false;
-          if (activeFilter === 'Upcoming' && fixture.status !== 'Upcoming' && fixture.statusBadge !== 'SCHED') return false;
-        }
-
-        // Search filtering
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const home = (fixture.homeTeam?.name || '').toLowerCase();
-          const away = (fixture.awayTeam?.name || '').toLowerCase();
-          return home.includes(q) || away.includes(q);
-        }
-        return true;
-      });
-
-      return {
-        ...card,
-        fixtures: filteredFixtures
-      };
-    }).filter(card => card.fixtures.length > 0);
-  }, [activeCards, selectedDate, activeFilter, searchQuery]);
+  // Primary active match for box score / penalty preview
+  const primaryActiveMatch = liveMatches[0] || (liveMatchState && getMatchCategory(liveMatchState) === 'live' ? liveMatchState : null);
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* 1. Header Navigation Card */}
-      <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 mb-6">
-        {/* Date Selector */}
-        <div className="flex items-center justify-between mb-5">
-          <button 
-            onClick={handlePreviousDate}
-            disabled={selectedDate === 'Today'}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-              selectedDate === 'Today'
-                ? 'opacity-40 cursor-not-allowed bg-gray-50 text-gray-400'
-                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+    <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
+      {/* 1. Unified Master Top Navbar */}
+      <UnifiedNavbar
+        activeNavTab={activeNavTab}
+        onNavTabChange={onNavTabChange}
+        liveCount={liveMatches.length}
+        upcomingCount={upcomingMatches.length}
+        finishedCount={finishedMatches.length}
+        currentView={currentView}
+        onViewChange={onViewChange}
+        canManageMatches={canManageMatches}
+        onOpenAddMatch={onOpenAddMatch}
+        onOpenDeleteMatch={onOpenDeleteMatch}
+        onOpenSearch={onOpenSearch}
+        currentUser={currentUser}
+        onLogout={onLogout}
+        onOpenLogin={onOpenLogin}
+      />
 
-          <div className="flex items-center gap-2 text-gray-800 font-semibold text-base sm:text-lg">
-            <Calendar className="w-5 h-5 text-gray-600" />
-            <span>{selectedDate}</span>
-          </div>
+      {/* 2. LEAGUE VIEW (League Hub: Standings, Teams, Players) */}
+      {activeNavTab === 'league' ? (
+        <LeagueManager
+          matches={matches}
+          isReadOnly={!canManageMatches}
+          initialSubTab="standings"
+        />
+      ) : (
+        <div className="space-y-6">
+          {/* Active Live Penalty Tracker (If Live Tab) */}
+          {activeNavTab === 'live' && primaryActiveMatch && (
+            <PenaltyTracker 
+              matchState={primaryActiveMatch} 
+              isOperator={false} 
+            />
+          )}
 
-          <button 
-            onClick={handleNextDate}
-            disabled={selectedDate === 'Tomorrow'}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-              selectedDate === 'Tomorrow'
-                ? 'opacity-40 cursor-not-allowed bg-gray-50 text-gray-400'
-                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* 
-          Filter Options (All, Live, Finished, Upcoming) 
-          Shown only when selectedDate === 'Today'. 
-          Hidden when selectedDate === 'Tomorrow'.
-        */}
-        {selectedDate === 'Today' && (
-          <div className="flex items-center gap-6 border-b border-gray-100 pb-2 mb-5 overflow-x-auto text-sm font-semibold">
-            <button
-              onClick={() => setActiveFilter('All')}
-              className={`pb-2 transition-colors cursor-pointer ${
-                activeFilter === 'All'
-                  ? 'text-blue-600 border-b-2 border-blue-600 font-bold'
-                  : 'text-gray-400 hover:text-gray-700'
-              }`}
-            >
-              <span>All</span>
-            </button>
-
-            <button
-              onClick={() => setActiveFilter('Live')}
-              className={`pb-2 transition-colors cursor-pointer ${
-                activeFilter === 'Live'
-                  ? 'text-emerald-600 border-b-2 border-emerald-600 font-bold'
-                  : 'text-gray-400 hover:text-gray-700'
-              }`}
-            >
-              <span>Live</span>
-            </button>
-
-            <button
-              onClick={() => setActiveFilter('Finished')}
-              className={`pb-2 transition-colors cursor-pointer ${
-                activeFilter === 'Finished'
-                  ? 'text-blue-600 border-b-2 border-blue-600 font-bold'
-                  : 'text-gray-400 hover:text-gray-700'
-              }`}
-            >
-              <span>Finished</span>
-            </button>
-
-            <button
-              onClick={() => setActiveFilter('Upcoming')}
-              className={`pb-2 transition-colors cursor-pointer ${
-                activeFilter === 'Upcoming'
-                  ? 'text-blue-600 border-b-2 border-blue-600 font-bold'
-                  : 'text-gray-400 hover:text-gray-700'
-              }`}
-            >
-              <span>Upcoming</span>
-            </button>
-          </div>
-        )}
-
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search teams, leagues..."
-            className="w-full bg-[#ECEEF2] hover:bg-gray-200/80 focus:bg-white text-gray-800 placeholder-gray-500 text-sm pl-11 pr-4 py-3 rounded-2xl outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-          />
-        </div>
-      </div>
-
-      {/* 2. League Fixture Cards */}
-      <div className="space-y-6">
-        {filteredCards.length === 0 ? (
-          <div className="bg-white rounded-3xl p-8 text-center text-gray-400 text-sm shadow-xs border border-gray-100">
-            No matches found for {selectedDate}.
-          </div>
-        ) : (
-          filteredCards.map((card, cardIndex) => (
-            <div 
-              key={cardIndex}
-              className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100"
-            >
-              {/* League Header with USA Flag */}
-              <div className="flex items-center gap-3 pb-4 mb-3 border-b border-gray-100">
-                <div className="w-6 h-4 rounded-xs overflow-hidden flex flex-col shadow-xs border border-gray-200 shrink-0">
-                  <div className="h-1/2 bg-[#002868] flex items-center justify-center">
-                    <span className="text-[6px] text-white">★</span>
-                  </div>
-                  <div className="h-1/2 flex flex-col">
-                    <div className="h-1/3 bg-[#BF0A30]"></div>
-                    <div className="h-1/3 bg-white"></div>
-                    <div className="h-1/3 bg-[#BF0A30]"></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] font-bold tracking-wider text-gray-400 uppercase leading-none">
-                    {card.country}
-                  </div>
-                  <div className="text-sm font-bold text-gray-800 leading-tight">
-                    {card.league}
-                  </div>
-                </div>
+          {/* Matches List Container */}
+          {displayedMatches.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                  {activeNavTab === 'live' && `Active Live Fixtures (${displayedMatches.length})`}
+                  {activeNavTab === 'upcoming' && `Scheduled Fixtures (${displayedMatches.length})`}
+                  {activeNavTab === 'finished' && `Concluded Match Results (${displayedMatches.length})`}
+                </span>
+                <span className="text-[11px] text-gray-400 font-semibold">
+                  Official NHL Live Timetable
+                </span>
               </div>
 
-              {/* Match Rows */}
-              <div className="divide-y divide-gray-100">
-                {card.fixtures.map((fixture) => (
-                  <div
-                    key={fixture.id}
-                    onClick={() => onSelectMatch(fixture.id)}
-                    className="py-4 px-3 sm:px-4 rounded-2xl transition-colors flex items-center justify-between hover:bg-gray-50/80 cursor-pointer group"
+              {/* Match Cards Grid */}
+              <div className="space-y-3.5">
+                {displayedMatches.map((m) => {
+                  const isCurrentLiveSync = primaryActiveMatch && m.id === primaryActiveMatch.id;
+                  const homeId = m.home?.id || 'blackhawks';
+                  const awayId = m.away?.id || 'penguins';
+                  const homeName = m.home?.name || 'Home Team';
+                  const awayName = m.away?.name || 'Away Team';
+                  const homeCrest = NHL_TEAMS[homeId]?.crestSvg || m.home?.crestSvg;
+                  const awayCrest = NHL_TEAMS[awayId]?.crestSvg || m.away?.crestSvg;
+                  const category = getMatchCategory(m);
+
+                  const homeScore = isCurrentLiveSync ? (primaryActiveMatch.home?.score ?? 0) : (m.home?.score ?? 0);
+                  const awayScore = isCurrentLiveSync ? (primaryActiveMatch.away?.score ?? 0) : (m.away?.score ?? 0);
+
+                  return (
+                    <div
+                      key={m.id}
+                      onClick={() => onSelectMatch(m.id)}
+                      className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/90 shadow-2xs hover:border-blue-400/80 hover:shadow-md transition-all cursor-pointer group"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        {/* Status Badge & Venue */}
+                        <div className="flex items-center justify-between sm:justify-start gap-3 border-b sm:border-b-0 pb-2 sm:pb-0 border-gray-100">
+                          {category === 'live' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-50 text-red-700 border border-red-200 text-xs font-black uppercase tracking-wider">
+                              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+                              {isCurrentLiveSync ? liveStatusText : `Live P${m.period || '1'}`}
+                            </span>
+                          ) : category === 'upcoming' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold uppercase tracking-wider">
+                              <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                              {m.dateTime || m.date || 'Scheduled'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold uppercase tracking-wider">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Final (FT)
+                            </span>
+                          )}
+
+                          <span className="text-xs text-gray-400 font-medium truncate max-w-[150px]">
+                            {m.venue || 'United Center'}
+                          </span>
+                        </div>
+
+                        {/* Matchup Header */}
+                        <div className="flex-1 flex items-center justify-between sm:justify-center gap-6 sm:px-4">
+                          {/* Home Team */}
+                          <div className="flex items-center gap-3 min-w-0 flex-1 justify-start sm:justify-end text-left sm:text-right">
+                            <span className="font-extrabold text-gray-900 text-sm sm:text-base truncate max-w-[150px]">
+                              {homeName}
+                            </span>
+                            {homeCrest && (
+                              <div 
+                                className="w-8 h-8 rounded-xl bg-gray-50 border border-gray-100 p-1 flex items-center justify-center shrink-0"
+                                dangerouslySetInnerHTML={{ __html: homeCrest }}
+                              />
+                            )}
+                          </div>
+
+                          {/* Scores / VS */}
+                          <div className="px-3 py-1 rounded-xl bg-gray-50 border border-gray-200 font-mono font-black text-sm sm:text-base shrink-0 flex items-center gap-2">
+                            {category === 'upcoming' ? (
+                              <span className="text-gray-400 text-xs font-sans font-bold uppercase tracking-wider">VS</span>
+                            ) : (
+                              <>
+                                <span className={homeScore > awayScore ? 'text-blue-600' : 'text-gray-900'}>{homeScore}</span>
+                                <span className="text-gray-300">-</span>
+                                <span className={awayScore > homeScore ? 'text-amber-600' : 'text-gray-900'}>{awayScore}</span>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Away Team */}
+                          <div className="flex items-center gap-3 min-w-0 flex-1 justify-end sm:justify-start text-right sm:text-left">
+                            {awayCrest && (
+                              <div 
+                                className="w-8 h-8 rounded-xl bg-gray-50 border border-gray-100 p-1 flex items-center justify-center shrink-0"
+                                dangerouslySetInnerHTML={{ __html: awayCrest }}
+                              />
+                            )}
+                            <span className="font-extrabold text-gray-900 text-sm sm:text-base truncate max-w-[150px]">
+                              {awayName}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Action Link */}
+                        <div className="flex items-center justify-end">
+                          <span className="text-xs font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                            Details <ArrowRight className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Box Score Table Preview for Primary Live / Finished Match */}
+              {(activeNavTab === 'live' || activeNavTab === 'finished') && displayedMatches[0] && (
+                <div className="pt-2">
+                  <BoxScoreTable matchState={primaryActiveMatch || displayedMatches[0]} />
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Empty State for Category */
+            <div className="bg-white rounded-3xl p-8 sm:p-12 border border-dashed border-gray-300 text-center shadow-xs">
+              <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center mb-4 ${
+                activeNavTab === 'live' ? 'bg-red-50 text-red-600 border border-red-100' :
+                activeNavTab === 'upcoming' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                'bg-emerald-50 text-emerald-600 border border-emerald-100'
+              }`}>
+                {activeNavTab === 'live' && <Radio className="w-7 h-7" />}
+                {activeNavTab === 'upcoming' && <Calendar className="w-7 h-7" />}
+                {activeNavTab === 'finished' && <CheckCircle2 className="w-7 h-7" />}
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-1">
+                {activeNavTab === 'live' && 'No Live Matches In Progress'}
+                {activeNavTab === 'upcoming' && 'No Upcoming Matches Scheduled'}
+                {activeNavTab === 'finished' && 'No Finished Matches Recorded'}
+              </h3>
+              <p className="text-xs text-gray-500 max-w-md mx-auto mb-6">
+                {activeNavTab === 'live' && 'There are currently no active fixtures with clock countdown in progress. View upcoming fixtures or check completed results.'}
+                {activeNavTab === 'upcoming' && 'There are no future fixtures scheduled on the calendar right now.'}
+                {activeNavTab === 'finished' && 'Matches that conclude with Full Time status will be archived here.'}
+              </p>
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                {activeNavTab === 'live' && upcomingMatches.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onNavTabChange('upcoming')}
+                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
                   >
-                    {/* Status Text (Clean text) */}
-                    <div className="w-16 sm:w-20 shrink-0">
-                      <span
-                        className={`text-xs font-bold tracking-wide ${
-                          fixture.isLive
-                            ? 'text-emerald-600 font-mono animate-pulse'
-                            : fixture.status === 'Upcoming'
-                              ? 'text-blue-600 font-mono'
-                              : 'text-gray-400'
-                        }`}
-                      >
-                        {fixture.statusBadge}
-                      </span>
-                    </div>
-
-                    {/* Match Teams & Score (Centered Layout) */}
-                    <div className="flex-1 flex items-center justify-center gap-2 sm:gap-6 min-w-0 px-2">
-                      {/* Home Team */}
-                      <div className="flex-1 flex items-center justify-end gap-2 sm:gap-3 text-right min-w-0">
-                        <span className={`font-semibold text-gray-800 text-sm sm:text-base truncate transition-colors ${
-                          fixture.isLiveSync ? 'group-hover:text-blue-600' : ''
-                        }`}>
-                          {fixture.homeTeam?.name}
-                        </span>
-                        <div 
-                          className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 flex items-center justify-center"
-                          dangerouslySetInnerHTML={{ __html: fixture.homeTeam?.crestSvg }}
-                        />
-                      </div>
-
-                      {/* Score */}
-                      <div className="w-16 sm:w-20 text-center shrink-0">
-                        <span className="text-base sm:text-lg font-bold text-gray-900 tracking-wider">
-                          {fixture.homeScore} &nbsp;-&nbsp; {fixture.awayScore}
-                        </span>
-                      </div>
-
-                      {/* Away Team */}
-                      <div className="flex-1 flex items-center justify-start gap-2 sm:gap-3 text-left min-w-0">
-                        <div 
-                          className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 flex items-center justify-center"
-                          dangerouslySetInnerHTML={{ __html: fixture.awayTeam?.crestSvg }}
-                        />
-                        <span className={`font-semibold text-gray-800 text-sm sm:text-base truncate transition-colors ${
-                          fixture.isLiveSync ? 'group-hover:text-blue-600' : ''
-                        }`}>
-                          {fixture.awayTeam?.name}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    View Upcoming Matches ({upcomingMatches.length})
+                  </button>
+                )}
+                {canManageMatches && onOpenAddMatch && (
+                  <button
+                    type="button"
+                    onClick={onOpenAddMatch}
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add New Match</span>
+                  </button>
+                )}
               </div>
             </div>
-          ))
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

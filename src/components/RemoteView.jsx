@@ -19,6 +19,9 @@ import { NHL_TEAMS, getTeamLineup, suggestTeamLineup, generateTeamCrestSvg } fro
 import { getCustomTeams, saveCustomTeam, deleteCustomTeam } from '../services/scoreboardService';
 import { AdminPanel } from './AdminPanel';
 import { LeagueManager } from './LeagueManager';
+import { UnifiedNavbar } from './UnifiedNavbar';
+import { BoxScoreTable } from './BoxScoreTable';
+import { PenaltyTracker } from './PenaltyTracker';
 
 export function RemoteView({ 
   matchState, 
@@ -31,7 +34,8 @@ export function RemoteView({
   onDeleteMatch,
   onBackToScoreboard,
   onOpenTeamEditor,
-  onLogout
+  onLogout,
+  onOpenSearch
 }) {
   const { formattedTime, remainingSeconds, isRunning } = useGameClock(matchState?.clock);
   const canAccessRemote = propCanAccessRemote ?? (currentUser?.canControlRemote || currentUser?.role === 'admin' || currentUser?.role === 'operator' || currentUser?.username === 'admin');
@@ -595,132 +599,35 @@ export function RemoteView({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* 1. MASTER TOP NAVBAR: League, Live, Upcoming, Finished & Match Action Buttons */}
-      <nav className="bg-white rounded-3xl p-3 sm:p-4 border border-gray-200/80 shadow-2xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Category Tabs: League, Live, Upcoming, Finished */}
-        <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-2xl overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => handleNavTabChange('league')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              remoteNavTab === 'league'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-gray-700 hover:text-gray-950 hover:bg-white/60'
-            }`}
-          >
-            <Trophy className="w-3.5 h-3.5" />
-            <span>League</span>
-          </button>
+      {/* 1. MASTER UNIFIED TOP NAVBAR */}
+      <UnifiedNavbar
+        activeNavTab={remoteNavTab}
+        onNavTabChange={handleNavTabChange}
+        liveCount={liveMatchesCount}
+        upcomingCount={upcomingMatchesCount}
+        finishedCount={finishedMatchesCount}
+        currentView="remote"
+        onViewChange={(view) => {
+          if (view === 'list' && onBackToScoreboard) onBackToScoreboard();
+        }}
+        canManageMatches={true}
+        onOpenAddMatch={() => setIsAddModalOpen(true)}
+        onOpenDeleteMatch={() => {
+          setSelectedMatchToDelete(matchState?.id || (matches[0] && matches[0].id));
+          setIsDeleteModalOpen(true);
+        }}
+        onOpenSearch={onOpenSearch}
+        currentUser={currentUser}
+        onLogout={onLogout}
+      />
 
-          <button
-            type="button"
-            onClick={() => handleNavTabChange('live')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              remoteNavTab === 'live'
-                ? 'bg-red-600 text-white shadow-xs'
-                : 'text-gray-700 hover:text-red-700 hover:bg-white/60'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${remoteNavTab === 'live' ? 'bg-white' : 'bg-red-500'} animate-pulse`} />
-            <span>Live</span>
-            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
-              remoteNavTab === 'live' ? 'bg-white/20 text-white font-black' : 'bg-gray-200 text-gray-700 font-bold'
-            }`}>
-              {liveMatchesCount}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleNavTabChange('upcoming')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              remoteNavTab === 'upcoming'
-                ? 'bg-amber-500 text-white shadow-xs'
-                : 'text-gray-700 hover:text-amber-700 hover:bg-white/60'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            <span>Upcoming</span>
-            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
-              remoteNavTab === 'upcoming' ? 'bg-white/20 text-white font-black' : 'bg-gray-200 text-gray-700 font-bold'
-            }`}>
-              {upcomingMatchesCount}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleNavTabChange('finished')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              remoteNavTab === 'finished'
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'text-gray-700 hover:text-emerald-700 hover:bg-white/60'
-            }`}
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Finished</span>
-            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
-              remoteNavTab === 'finished' ? 'bg-white/20 text-white font-black' : 'bg-gray-200 text-gray-700 font-bold'
-            }`}>
-              {finishedMatchesCount}
-            </span>
-          </button>
-        </div>
-
-        {/* Right Top Action Buttons: Add Match, Remove Match, Scoreboard, Logout */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          {/* Add Match Button */}
-          <button
-            type="button"
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-98"
-            title="Create new match fixture"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Match</span>
-          </button>
-
-          {/* Remove Match Button */}
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedMatchToDelete(matchState?.id || (matches[0] && matches[0].id));
-              setIsDeleteModalOpen(true);
-            }}
-            disabled={matches.length <= 1}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-700 border border-gray-200 hover:border-red-200 text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            title="Delete a match fixture"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Remove Match</span>
-          </button>
-
-          {/* Back to Scoreboard */}
-          <button
-            type="button"
-            onClick={onBackToScoreboard}
-            className="px-3.5 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-gray-900 border border-gray-200 text-xs font-semibold transition-colors cursor-pointer"
-            title="Return to public scoreboard"
-          >
-            <span>Scoreboard</span>
-          </button>
-
-          {onLogout && (
-            <button
-              type="button"
-              onClick={onLogout}
-              className="px-3 py-2.5 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 border border-gray-200 hover:border-red-200 transition-colors cursor-pointer"
-              title="Sign out"
-            >
-              Log Out
-            </button>
-          )}
-        </div>
-      </nav>
-
-      {/* 2. LEAGUE MANAGEMENT VIEW (Teams & Players Fields) */}
+      {/* 2. LEAGUE MANAGEMENT VIEW (Standings, Teams & Players) */}
       {remoteNavTab === 'league' ? (
-        <LeagueManager />
+        <LeagueManager 
+          matches={matches}
+          isReadOnly={false}
+          initialSubTab="standings"
+        />
       ) : (
         <>
           {/* Category Matches Quick Selector Strip */}
@@ -1290,6 +1197,16 @@ export function RemoteView({
               </div>
             </div>
           )}
+
+          {/* Live Penalty Tracker & Power Plays */}
+          <PenaltyTracker 
+            matchState={matchState} 
+            isOperator={true} 
+            onCancelPenalty={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay(null)} 
+          />
+
+          {/* Period-by-Period Box Score Table */}
+          <BoxScoreTable matchState={matchState} />
 
           {/* 4. DUAL TEAM STATIONS: GOALS / SCORE EDITING */}
           <div>

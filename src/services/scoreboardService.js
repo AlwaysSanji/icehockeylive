@@ -1041,3 +1041,182 @@ export async function updateSchedule(currentState, scheduleData) {
   };
   await updateMatchState(updatedState);
 }
+
+const LOCAL_STORAGE_STANDINGS_KEY = 'nhl_hockey_standings_overrides';
+
+// Read manual standings overrides
+export function getStandingsOverrides() {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_STANDINGS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Error reading standings overrides:', e);
+  }
+  return {};
+}
+
+// Save standings override for a team
+export function saveStandingsOverride(teamId, overrideData) {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getStandingsOverrides();
+    const updated = {
+      ...current,
+      [teamId]: {
+        ...(current[teamId] || {}),
+        ...overrideData
+      }
+    };
+    localStorage.setItem(LOCAL_STORAGE_STANDINGS_KEY, JSON.stringify(updated));
+    if (channel) {
+      channel.postMessage({ type: 'STANDINGS_UPDATED', overrides: updated });
+    }
+  } catch (e) {
+    console.warn('Error saving standings override:', e);
+  }
+}
+
+// Reset all standings overrides to pure auto-calculated
+export function resetStandingsOverrides() {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(LOCAL_STORAGE_STANDINGS_KEY);
+    if (channel) {
+      channel.postMessage({ type: 'STANDINGS_UPDATED', overrides: {} });
+    }
+  } catch (e) {
+    console.warn('Error resetting standings overrides:', e);
+  }
+}
+
+// Calculate comprehensive league standings from recorded matches with overrides
+export function calculateLeagueStandings(matches = []) {
+  const allTeams = getAllLeagueTeams();
+  const overrides = getStandingsOverrides();
+
+  // Initialize team records map
+  const tableMap = {};
+  allTeams.forEach(t => {
+    tableMap[t.id] = {
+      id: t.id,
+      name: t.name,
+      shortCode: t.shortCode || t.id.slice(0, 3).toUpperCase(),
+      crestSvg: t.crestSvg,
+      city: t.city || 'NHL',
+      stadium: t.stadium || 'Arena',
+      gp: 0,
+      w: 0,
+      l: 0,
+      otl: 0,
+      pts: 0,
+      gf: 0,
+      ga: 0,
+      diff: 0,
+      form: []
+    };
+  });
+
+  // Calculate from completed matches
+  matches.forEach(m => {
+    const isFinished = m.period === 'FT' || m.status === 'Finished' || m.statusBadge === 'FT';
+    if (!isFinished) return;
+
+    const hId = m.home?.id;
+    const aId = m.away?.id;
+    if (!hId || !aId) return;
+
+    // Ensure teams exist in map
+    if (!tableMap[hId]) {
+      tableMap[hId] = {
+        id: hId,
+        name: m.home?.name || 'Home',
+        shortCode: hId.slice(0, 3).toUpperCase(),
+        crestSvg: m.home?.crestSvg,
+        gp: 0, w: 0, l: 0, otl: 0, pts: 0, gf: 0, ga: 0, diff: 0, form: []
+      };
+    }
+    if (!tableMap[aId]) {
+      tableMap[aId] = {
+        id: aId,
+        name: m.away?.name || 'Away',
+        shortCode: aId.slice(0, 3).toUpperCase(),
+        crestSvg: m.away?.crestSvg,
+        gp: 0, w: 0, l: 0, otl: 0, pts: 0, gf: 0, ga: 0, diff: 0, form: []
+      };
+    }
+
+    const hScore = m.home?.score ?? 0;
+    const aScore = m.away?.score ?? 0;
+    const wentToOT = m.wentToOT || m.period === 'OT' || m.period === 'SO';
+
+    tableMap[hId].gp += 1;
+    tableMap[aId].gp += 1;
+    tableMap[hId].gf += hScore;
+    tableMap[hId].ga += aScore;
+    tableMap[aId].gf += aScore;
+    tableMap[aId].ga += hScore;
+
+    if (hScore > aScore) {
+      tableMap[hId].w += 1;
+      tableMap[hId].pts += 2;
+      tableMap[hId].form.unshift('W');
+      if (wentToOT) {
+        tableMap[aId].otl += 1;
+        tableMap[aId].pts += 1;
+        tableMap[aId].form.unshift('OTL');
+      } else {
+        tableMap[aId].l += 1;
+        tableMap[aId].form.unshift('L');
+      }
+    } else if (aScore > hScore) {
+      tableMap[aId].w += 1;
+      tableMap[aId].pts += 2;
+      tableMap[aId].form.unshift('W');
+      if (wentToOT) {
+        tableMap[hId].otl += 1;
+        tableMap[hId].pts += 1;
+        tableMap[hId].form.unshift('OTL');
+      } else {
+        tableMap[hId].l += 1;
+        tableMap[hId].form.unshift('L');
+      }
+    } else {
+      // Tie fallback
+      tableMap[hId].pts += 1;
+      tableMap[aId].pts += 1;
+    }
+  });
+
+  // Calculate goal differentials and apply admin overrides
+  const standingsList = Object.values(tableMap).map(team => {
+    team.diff = team.gf - team.ga;
+    const ov = overrides[team.id];
+    if (ov) {
+      return {
+        ...team,
+        gp: ov.gp !== undefined ? ov.gp : team.gp,
+        w: ov.w !== undefined ? ov.w : team.w,
+        l: ov.l !== undefined ? ov.l : team.l,
+        otl: ov.otl !== undefined ? ov.otl : team.otl,
+        pts: ov.pts !== undefined ? ov.pts : (ov.w !== undefined ? ov.w * 2 + (ov.otl || 0) : team.pts),
+        gf: ov.gf !== undefined ? ov.gf : team.gf,
+        ga: ov.ga !== undefined ? ov.ga : team.ga,
+        diff: ov.gf !== undefined && ov.ga !== undefined ? (ov.gf - ov.ga) : team.diff,
+        isOverridden: true
+      };
+    }
+    return team;
+  });
+
+  // Sort by PTS desc, W desc, DIFF desc, GF desc
+  standingsList.sort((a, b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    if (b.w !== a.w) return b.w - a.w;
+    if (b.diff !== a.diff) return b.diff - a.diff;
+    return b.gf - a.gf;
+  });
+
+  return standingsList;
+}
+

@@ -7,6 +7,7 @@ import { AuthView } from './components/AuthView';
 import { LegalModal } from './components/LegalModal';
 import { TeamEditorModal } from './components/TeamEditorModal';
 import { FirebaseModal } from './components/FirebaseModal';
+import { SearchModal } from './components/SearchModal';
 import { isFirebaseConfigured, activeConfig } from './firebase/config';
 import { useScoreboard } from './hooks/useScoreboard';
 import { getCurrentUser, logoutUser, checkSession, canUserAccessRemote, isUserAdmin } from './services/authService';
@@ -20,6 +21,10 @@ export default function App() {
   const isLoggedIn = Boolean(currentUser);
   const canAccessRemote = canUserAccessRemote(currentUser);
   const [legalModalTab, setLegalModalTab] = useState(null); // 'privacy', 'tos', or null
+
+  // Top navbar tab state ('live', 'league', 'upcoming', 'finished')
+  const [activeNavTab, setActiveNavTab] = useState('live');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // View routing: 'list', 'detail', 'remote', or 'login'
   const [currentView, setCurrentView] = useState(() => {
@@ -38,6 +43,18 @@ export default function App() {
   const [selectedMatchId, setSelectedMatchId] = useState('live-match-1');
   const [isTeamEditorOpen, setIsTeamEditorOpen] = useState(false);
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
+
+  // Global keyboard shortcut: Cmd+K / Ctrl+K opens instant search
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Sync route with window hash for easy navigation
   useEffect(() => {
@@ -112,6 +129,29 @@ export default function App() {
               liveMatchState={matchState}
               matches={scoreboard.matches}
               onSelectMatch={handleSelectMatch}
+              activeNavTab={activeNavTab}
+              onNavTabChange={setActiveNavTab}
+              canManageMatches={canAccessRemote}
+              onOpenAddMatch={() => {
+                if (canAccessRemote) {
+                  changeView('remote');
+                } else {
+                  changeView('login');
+                }
+              }}
+              onOpenDeleteMatch={() => {
+                if (canAccessRemote) {
+                  changeView('remote');
+                } else {
+                  changeView('login');
+                }
+              }}
+              onOpenSearch={() => setIsSearchOpen(true)}
+              currentUser={currentUser}
+              currentView={currentView}
+              onViewChange={changeView}
+              onLogout={handleLogout}
+              onOpenLogin={() => changeView('login')}
             />
           )}
 
@@ -149,9 +189,10 @@ export default function App() {
                 onSelectMatch={scoreboard.selectMatch}
                 onAddMatch={scoreboard.addMatch}
                 onDeleteMatch={scoreboard.deleteMatch}
-                onBackToScoreboard={() => changeView('detail')}
+                onBackToScoreboard={() => changeView('list')}
                 onOpenTeamEditor={() => setIsTeamEditorOpen(true)}
                 onLogout={handleLogout}
+                onOpenSearch={() => setIsSearchOpen(true)}
               />
             ) : (
               <AuthView
@@ -185,6 +226,22 @@ export default function App() {
           onClose={() => setIsFirebaseModalOpen(false)}
         />
       )}
+
+      {/* Unified Search Modal */}
+      <SearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        matches={scoreboard.matches}
+        onSelectMatch={(matchId) => {
+          handleSelectMatch(matchId);
+          setIsSearchOpen(false);
+        }}
+        onNavigateToLeague={(subTab) => {
+          setActiveNavTab('league');
+          changeView('list');
+          setIsSearchOpen(false);
+        }}
+      />
 
       {/* Subtle Footer */}
       <footer className="border-t border-gray-200/60 bg-white py-6 mt-12 text-center text-xs text-gray-500">
