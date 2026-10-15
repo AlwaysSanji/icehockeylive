@@ -1077,6 +1077,27 @@ export function RemoteView({
                     {isRunning ? 'Live Game Action' : 'Clock Stopped'}
                   </span>
                 </div>
+                <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 pt-3 border-t border-gray-800/80 px-4">
+                  <span className="text-[11px] text-gray-400 font-semibold mr-1">Period:</span>
+                  {['1', '2', '3', 'OT', 'SO', 'FT'].map((pKey) => {
+                    const isSelected = String(matchState?.period) === pKey;
+                    const label = pKey === 'FT' ? 'End Game (FT)' : pKey === 'OT' ? 'Overtime' : pKey === 'SO' ? 'SO' : `P${pKey}`;
+                    return (
+                      <button
+                        key={pKey}
+                        type="button"
+                        onClick={() => scoreboard.setPeriod(pKey)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-gray-800/80 hover:bg-gray-700 text-gray-300'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Main Action Buttons: Start/Pause & Presets */}
@@ -1673,48 +1694,6 @@ export function RemoteView({
               </div>
             )}
           </div>
-
-          {/* 6. PERIOD & GAME STATE SWITCHER */}
-          <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-              <div>
-                <h3 className="font-bold text-gray-900 text-base">
-                  {isCompleted ? 'Match Status: Finished (Full Time)' : 'Period & Game State Selection'}
-                </h3>
-                <p className="text-xs text-gray-400">
-                  {isCompleted
-                    ? 'Match is closed at Full Time. Select an active period (1, 2, 3, OT) to reopen live game tracking.'
-                    : 'Switch game period or conclude match at Full Time.'}
-                </p>
-              </div>
-              {isCompleted && (
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl self-start sm:self-auto">
-                  Completed Match
-                </span>
-              )}
-            </div>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-              {['1', '2', '3', 'OT', 'SO', 'FT'].map((periodKey) => {
-                const isSelected = String(matchState?.period) === periodKey;
-                const label = periodKey === 'FT' ? 'Full Time' : periodKey === 'OT' ? 'Overtime' : periodKey === 'SO' ? 'Shootout' : `Period ${periodKey}`;
-                return (
-                  <button
-                    key={periodKey}
-                    type="button"
-                    onClick={() => scoreboard.setPeriod(periodKey)}
-                    className={`py-3 px-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    <span>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
         </div>
       )}
             </>
