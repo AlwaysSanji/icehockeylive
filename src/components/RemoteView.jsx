@@ -582,34 +582,6 @@ export function RemoteView({
         </div>
       </div>
 
-      {/* 2. ARENA AUDIO & ATMOSPHERE BAR */}
-      <div className="bg-white rounded-3xl p-5 shadow-xs border border-gray-100 mb-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-bold text-gray-900">Arena Atmosphere & Live Sounds</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Blast real synthesized arena horns and end-of-period buzzers</p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={scoreboard.blastHorn}
-            className="flex-1 sm:flex-initial px-5 py-3 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs shadow-md shadow-red-500/20 active:scale-95 transition-all cursor-pointer"
-            title="Blast Goal Horn across all connected spectators"
-          >
-            <span>Blast Goal Horn</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={scoreboard.playPeriodBuzzer}
-            className="flex-1 sm:flex-initial px-4 py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs border border-gray-200 active:scale-95 transition-all cursor-pointer"
-            title="Sound End of Period Buzzer"
-          >
-            <span>Sound Period Buzzer</span>
-          </button>
-        </div>
-      </div>
-
       {/* Console Mode Selector */}
       <div className="flex items-center gap-2 p-1.5 bg-gray-100 rounded-2xl mb-6 border border-gray-200">
         <button
