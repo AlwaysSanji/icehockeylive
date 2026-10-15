@@ -799,13 +799,9 @@ export async function resetGame(currentState) {
   await updateMatchState(updatedState);
 }
 
-// Remotely trigger arena horn sound
+// Remotely trigger arena horn sound (Disabled)
 export async function triggerRemoteHorn(currentState) {
-  const updatedState = {
-    ...currentState,
-    lastHornTimestamp: Date.now()
-  };
-  await updateMatchState(updatedState);
+  // Audio disabled per user requirement
 }
 
 // ADMIN: Exact time correction (minutes & seconds)

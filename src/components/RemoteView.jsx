@@ -92,7 +92,7 @@ export function RemoteView({
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
   const [editingIncidentId, setEditingIncidentId] = useState(null);
   const [incidentTeam, setIncidentTeam] = useState('home');
-  const [incidentType, setIncidentType] = useState('goal'); // 'goal', 'penalty', 'timeout'
+  const [incidentType, setIncidentType] = useState('goal'); // 'goal', 'shot', 'penalty', 'timeout'
   const [incidentPlayer, setIncidentPlayer] = useState('');
   const [incidentAssist, setIncidentAssist] = useState('');
   const [incidentPenaltyReason, setIncidentPenaltyReason] = useState('Tripping');
@@ -100,7 +100,14 @@ export function RemoteView({
   const [incidentMinute, setIncidentMinute] = useState('');
   const [incidentPeriod, setIncidentPeriod] = useState('1');
   const [incidentGoalType, setIncidentGoalType] = useState('EV');
-  const [timelineFilter, setTimelineFilter] = useState('all'); // 'all', 'goal', 'penalty'
+  const [timelineFilter, setTimelineFilter] = useState('all'); // 'all', 'goal', 'penalty', 'shot'
+
+  // Shot Maker Modal State
+  const [isShotModalOpen, setIsShotModalOpen] = useState(false);
+  const [shotTeam, setShotTeam] = useState('home');
+  const [shotPlayer, setShotPlayer] = useState('');
+  const [shotMinute, setShotMinute] = useState('');
+  const [shotPeriod, setShotPeriod] = useState('1');
 
   // Spacebar keyboard shortcut for clock start/stop
   useEffect(() => {
@@ -269,18 +276,27 @@ export function RemoteView({
   const filteredEvents = useMemo(() => {
     if (timelineFilter === 'goal') return currentEvents.filter(e => e.type === 'goal');
     if (timelineFilter === 'penalty') return currentEvents.filter(e => e.type === 'penalty');
+    if (timelineFilter === 'shot') return currentEvents.filter(e => e.type === 'shot');
     return currentEvents;
   }, [currentEvents, timelineFilter]);
 
   // Open Quick Incident Logger (supports adding new or editing existing incident)
   const openIncidentLogger = (team = 'home', type = 'goal', existingIncident = null) => {
     if (existingIncident) {
+      if (existingIncident.type === 'shot') {
+        setShotTeam(existingIncident.team || team);
+        setShotMinute(existingIncident.time || (isCompleted ? '15:00' : (formattedTime || '10:00')));
+        setShotPeriod(existingIncident.period ? existingIncident.period.replace('P', '') : (matchState?.period || '1'));
+        setShotPlayer(existingIncident.shotPlayer || existingIncident.player || '');
+        setIsShotModalOpen(true);
+        return;
+      }
       setEditingIncidentId(existingIncident.id);
       setIncidentTeam(existingIncident.team || team);
       setIncidentType(existingIncident.type || type);
-      setIncidentMinute(existingIncident.time || formattedTime);
+      setIncidentMinute(existingIncident.time || (isCompleted ? '15:00' : (formattedTime || '10:00')));
       setIncidentPeriod(existingIncident.period ? existingIncident.period.replace('P', '') : (matchState?.period || '1'));
-      setIncidentPlayer(existingIncident.scorer || existingIncident.penaltyPlayer || '');
+      setIncidentPlayer(existingIncident.scorer || existingIncident.penaltyPlayer || existingIncident.shotPlayer || existingIncident.player || '');
       setIncidentAssist(existingIncident.assist || '');
       setIncidentPenaltyReason(existingIncident.penaltyReason || 'Tripping');
       setIncidentPenaltyMins(existingIncident.penaltyMin || 2);
@@ -289,16 +305,63 @@ export function RemoteView({
       setEditingIncidentId(null);
       setIncidentTeam(team);
       setIncidentType(type);
-      setIncidentMinute(isCompleted ? '15:00' : formattedTime);
+      // Capture the exact clock time snapshot at the moment clicked
+      const clickTime = isCompleted ? '15:00' : (formattedTime || '10:00');
+      setIncidentMinute(clickTime);
       setIncidentPeriod(matchState?.period === 'FT' ? '3' : (matchState?.period || '1'));
       const activeLineup = team === 'home' ? homeLineup : awayLineup;
-      setIncidentPlayer(activeLineup[1]?.name || '');
+      setIncidentPlayer(activeLineup[1]?.name || activeLineup[0]?.name || '');
       setIncidentAssist(activeLineup[2]?.name || '');
       setIncidentPenaltyReason('Tripping');
       setIncidentPenaltyMins(2);
       setIncidentGoalType('EV');
     }
     setIsIncidentModalOpen(true);
+  };
+
+  // Open Shot Maker Modal to prompt for shooter
+  const handleOpenAddShot = (team = 'home') => {
+    setShotTeam(team);
+    const clickTime = isCompleted ? '15:00' : (formattedTime || '10:00');
+    setShotMinute(clickTime);
+    setShotPeriod(matchState?.period === 'FT' ? '3' : (matchState?.period || '1'));
+    const activeLineup = team === 'home' ? homeLineup : awayLineup;
+    setShotPlayer(activeLineup[0]?.name || activeLineup[1]?.name || '');
+    setIsShotModalOpen(true);
+  };
+
+  // Submit Shot on Goal with Shot Maker
+  const handleSubmitShot = async (e) => {
+    e.preventDefault();
+    const periodLabel = `P${shotPeriod || matchState?.period || '1'}`;
+    const timeLabel = shotMinute || formattedTime;
+    const teamName = shotTeam === 'home' ? homeName : awayName;
+    const currentTeamShots = (shotTeam === 'home' ? homeShots : awayShots) + 1;
+
+    try {
+      if (shotTeam === 'home') {
+        scoreboard.incrementHomeShots();
+      } else {
+        scoreboard.incrementAwayShots();
+      }
+
+      if (scoreboard.addIncident) {
+        await scoreboard.addIncident({
+          time: timeLabel,
+          period: periodLabel,
+          team: shotTeam,
+          type: 'shot',
+          shotPlayer: shotPlayer || `${teamName} Shooter`,
+          player: shotPlayer || `${teamName} Shooter`,
+          shotsCount: currentTeamShots,
+          text: `Shot on Goal by ${shotPlayer || `${teamName} Shooter`} (${teamName})`
+        });
+      }
+    } catch (err) {
+      console.error('Failed to submit shot:', err);
+    } finally {
+      setIsShotModalOpen(false);
+    }
   };
 
   // Submit Incident Logger (Add or Edit)
@@ -321,6 +384,10 @@ export function RemoteView({
             assist: incidentAssist || '',
             goalType: incidentGoalType,
             text: `Goal! ${teamName} - ${incidentPlayer}`
+          } : incidentType === 'shot' ? {
+            shotPlayer: incidentPlayer || `${teamName} Shooter`,
+            player: incidentPlayer || `${teamName} Shooter`,
+            text: `Shot on Goal by ${incidentPlayer} (${teamName})`
           } : incidentType === 'penalty' ? {
             penaltyPlayer: incidentPlayer || `${teamName} Player`,
             penaltyMin: incidentPenaltyMins,
@@ -342,7 +409,6 @@ export function RemoteView({
           } else {
             scoreboard.incrementAwayScore();
           }
-          scoreboard.blastHorn();
 
           const newHomeScore = homeScore + (incidentTeam === 'home' ? 1 : 0);
           const newAwayScore = awayScore + (incidentTeam === 'away' ? 1 : 0);
@@ -358,6 +424,26 @@ export function RemoteView({
               goalType: incidentGoalType,
               score: `${newHomeScore} - ${newAwayScore}`,
               text: `Goal! ${teamName} (${newHomeScore} - ${newAwayScore})`
+            });
+          }
+        } else if (incidentType === 'shot') {
+          if (incidentTeam === 'home') {
+            scoreboard.incrementHomeShots();
+          } else {
+            scoreboard.incrementAwayShots();
+          }
+
+          const currentTeamShots = (incidentTeam === 'home' ? homeShots : awayShots) + 1;
+          if (scoreboard.addIncident) {
+            await scoreboard.addIncident({
+              time: timeLabel,
+              period: periodLabel,
+              team: incidentTeam,
+              type: 'shot',
+              shotPlayer: incidentPlayer || `${teamName} Shooter`,
+              player: incidentPlayer || `${teamName} Shooter`,
+              shotsCount: currentTeamShots,
+              text: `Shot on Goal by ${incidentPlayer || `${teamName} Shooter`} (${teamName})`
             });
           }
         } else if (incidentType === 'penalty') {
@@ -397,13 +483,20 @@ export function RemoteView({
   };
 
   // Delete an incident from timeline
-  const handleDeleteIncident = async (incidentId, isGoal = false) => {
+  const handleDeleteIncident = async (incidentId, isGoal = false, isShot = false, team = 'home') => {
     if (!window.confirm('Are you sure you want to delete this incident from the timeline?')) {
       return;
     }
     try {
       if (scoreboard.deleteIncident) {
         await scoreboard.deleteIncident(incidentId, false);
+      }
+      if (isGoal) {
+        if (team === 'home') scoreboard.decrementHomeScore();
+        else scoreboard.decrementAwayScore();
+      } else if (isShot) {
+        if (team === 'home') scoreboard.decrementHomeShots();
+        else scoreboard.decrementAwayShots();
       }
     } catch (err) {
       console.error('Failed to delete incident:', err);
@@ -979,12 +1072,9 @@ export function RemoteView({
 
                     <button
                       type="button"
-                      onClick={() => {
-                        scoreboard.incrementHomeScore();
-                        scoreboard.blastHorn();
-                      }}
+                      onClick={() => openIncidentLogger('home', 'goal')}
                       className="py-3 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
-                      title="Add 1 goal and sound horn"
+                      title="Add 1 goal (prompts for scorer & exact time)"
                     >
                       <Plus className="w-5 h-5" />
                       <span className="text-xs">+1 Goal</span>
@@ -1002,13 +1092,15 @@ export function RemoteView({
                           type="button"
                           onClick={scoreboard.decrementHomeShots}
                           className="w-7 h-7 bg-white hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-700 cursor-pointer"
+                          title="Subtract 1 shot"
                         >
                           -
                         </button>
                         <button
                           type="button"
-                          onClick={scoreboard.incrementHomeShots}
+                          onClick={() => handleOpenAddShot('home')}
                           className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center font-bold cursor-pointer"
+                          title="Add shot on goal (prompts for shot maker)"
                         >
                           +
                         </button>
@@ -1085,12 +1177,9 @@ export function RemoteView({
 
                     <button
                       type="button"
-                      onClick={() => {
-                        scoreboard.incrementAwayScore();
-                        scoreboard.blastHorn();
-                      }}
+                      onClick={() => openIncidentLogger('away', 'goal')}
                       className="py-3 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
-                      title="Add 1 goal and sound horn"
+                      title="Add 1 goal (prompts for scorer & exact time)"
                     >
                       <Plus className="w-5 h-5" />
                       <span className="text-xs">+1 Goal</span>
@@ -1108,13 +1197,15 @@ export function RemoteView({
                           type="button"
                           onClick={scoreboard.decrementAwayShots}
                           className="w-7 h-7 bg-white hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-700 cursor-pointer"
+                          title="Subtract 1 shot"
                         >
                           -
                         </button>
                         <button
                           type="button"
-                          onClick={scoreboard.incrementAwayShots}
+                          onClick={() => handleOpenAddShot('away')}
                           className="w-7 h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex items-center justify-center font-bold cursor-pointer"
+                          title="Add shot on goal (prompts for shot maker)"
                         >
                           +
                         </button>
@@ -1156,6 +1247,13 @@ export function RemoteView({
                   className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 >
                   <span>+ Log Goal Scorer</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddShot('home')}
+                  className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  <span>+ Log Shot Maker</span>
                 </button>
                 <button
                   type="button"
@@ -1201,6 +1299,17 @@ export function RemoteView({
                 </button>
                 <button
                   type="button"
+                  onClick={() => setTimelineFilter('shot')}
+                  className={`py-1 transition-colors cursor-pointer ${
+                    timelineFilter === 'shot'
+                      ? 'text-sky-600 border-b-2 border-sky-600 font-black'
+                      : 'text-gray-400 hover:text-gray-700'
+                  }`}
+                >
+                  Shots ({currentEvents.filter(e => e.type === 'shot').length})
+                </button>
+                <button
+                  type="button"
                   onClick={() => setTimelineFilter('penalty')}
                   className={`py-1 transition-colors cursor-pointer ${
                     timelineFilter === 'penalty'
@@ -1222,9 +1331,9 @@ export function RemoteView({
               <div className="p-8 bg-gray-50/70 rounded-2xl border border-gray-100 text-center text-xs">
                 <span className="text-gray-400 font-semibold block mb-1">NO TIMELINE INCIDENTS RECORDED YET</span>
                 <p className="text-gray-500 max-w-sm mx-auto mb-3">
-                  Click "+ Log Goal Scorer" or "+ Log Penalty" to set live timeline events for this match.
+                  Click "+ Log Goal Scorer", "+ Log Shot Maker", or "+ Log Penalty" to set live timeline events for this match.
                 </p>
-                <div className="flex justify-center gap-2">
+                <div className="flex flex-wrap justify-center gap-2">
                   <button
                     type="button"
                     onClick={() => openIncidentLogger('home', 'goal')}
@@ -1234,10 +1343,24 @@ export function RemoteView({
                   </button>
                   <button
                     type="button"
+                    onClick={() => handleOpenAddShot('home')}
+                    className="px-3 py-1.5 bg-sky-50 text-sky-700 font-bold rounded-lg hover:bg-sky-100 cursor-pointer"
+                  >
+                    + Shot for {homeName}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => openIncidentLogger('away', 'goal')}
                     className="px-3 py-1.5 bg-amber-50 text-amber-700 font-bold rounded-lg hover:bg-amber-100 cursor-pointer"
                   >
                     + Goal for {awayName}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddShot('away')}
+                    className="px-3 py-1.5 bg-amber-50 text-amber-800 font-bold rounded-lg hover:bg-amber-100 cursor-pointer"
+                  >
+                    + Shot for {awayName}
                   </button>
                 </div>
               </div>
@@ -1246,6 +1369,7 @@ export function RemoteView({
                 {filteredEvents.map((evt) => {
                   const isGoal = evt.type === 'goal';
                   const isPenalty = evt.type === 'penalty';
+                  const isShot = evt.type === 'shot';
                   const isHome = evt.team === 'home';
                   const evtTeamName = isHome ? homeName : awayName;
 
@@ -1265,13 +1389,13 @@ export function RemoteView({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className={`text-[11px] font-black uppercase tracking-wider ${
-                              isGoal ? (isHome ? 'text-blue-600' : 'text-amber-600') : isPenalty ? 'text-gray-800' : 'text-purple-600'
+                              isGoal ? (isHome ? 'text-blue-600' : 'text-amber-600') : isShot ? 'text-sky-600' : isPenalty ? 'text-gray-800' : 'text-purple-600'
                             }`}>
-                              {isGoal ? 'Goal' : isPenalty ? `${evt.penaltyMin || 2} Min Penalty` : 'Timeout'}
+                              {isGoal ? 'Goal' : isShot ? 'Shot on Goal' : isPenalty ? `${evt.penaltyMin || 2} Min Penalty` : 'Timeout'}
                             </span>
                             <span className="text-gray-300">•</span>
                             <span className="text-xs font-bold text-gray-900 truncate">
-                              {isGoal ? evt.scorer : isPenalty ? evt.penaltyPlayer : evtTeamName}
+                              {isGoal ? evt.scorer : isShot ? (evt.shotPlayer || evt.player) : isPenalty ? evt.penaltyPlayer : evtTeamName}
                             </span>
                             {evt.score && (
                               <span className="font-mono text-xs font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
@@ -1286,6 +1410,12 @@ export function RemoteView({
                               <>
                                 <span>•</span>
                                 <span>Assist: <strong className="text-gray-700">{evt.assist}</strong></span>
+                              </>
+                            )}
+                            {isShot && (
+                              <>
+                                <span>•</span>
+                                <span>Shot Maker: <strong className="text-gray-700">{evt.shotPlayer || evt.player}</strong></span>
                               </>
                             )}
                             {isPenalty && (
@@ -1310,7 +1440,7 @@ export function RemoteView({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDeleteIncident(evt.id, isGoal)}
+                          onClick={() => handleDeleteIncident(evt.id, isGoal, isShot, evt.team)}
                           className="px-2.5 py-1 text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                           title="Delete this incident"
                         >
@@ -2128,7 +2258,13 @@ export function RemoteView({
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-100">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
-                  {editingIncidentId ? 'Edit Match Incident' : 'Log Match Incident'}
+                  {editingIncidentId
+                    ? 'Edit Match Incident'
+                    : incidentType === 'goal'
+                    ? 'Record Goal & Update Timeline'
+                    : incidentType === 'shot'
+                    ? 'Record Shot on Goal'
+                    : 'Log Match Incident'}
                 </h3>
                 <p className="text-xs text-gray-500">
                   {editingIncidentId ? 'Modifying recorded incident on live timeline for ' : 'Recording to live timeline for '}
@@ -2157,7 +2293,13 @@ export function RemoteView({
                   <div className="grid grid-cols-2 gap-1 bg-gray-100 p-1 rounded-xl">
                     <button
                       type="button"
-                      onClick={() => setIncidentTeam('home')}
+                      onClick={() => {
+                        setIncidentTeam('home');
+                        if (!editingIncidentId) {
+                          setIncidentPlayer(homeLineup[1]?.name || homeLineup[0]?.name || '');
+                          setIncidentAssist(homeLineup[2]?.name || '');
+                        }
+                      }}
                       className={`py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
                         incidentTeam === 'home' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-600'
                       }`}
@@ -2166,7 +2308,13 @@ export function RemoteView({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setIncidentTeam('away')}
+                      onClick={() => {
+                        setIncidentTeam('away');
+                        if (!editingIncidentId) {
+                          setIncidentPlayer(awayLineup[1]?.name || awayLineup[0]?.name || '');
+                          setIncidentAssist(awayLineup[2]?.name || '');
+                        }
+                      }}
                       className={`py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
                         incidentTeam === 'away' ? 'bg-white text-amber-700 shadow-xs' : 'text-gray-600'
                       }`}
@@ -2186,6 +2334,7 @@ export function RemoteView({
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
                   >
                     <option value="goal">Goal {editingIncidentId ? '' : '(+1 Score)'}</option>
+                    <option value="shot">Shot on Goal {editingIncidentId ? '' : '(+1 SOG)'}</option>
                     <option value="penalty">Penalty (PIM)</option>
                     <option value="timeout">30s Official Timeout</option>
                   </select>
@@ -2214,16 +2363,16 @@ export function RemoteView({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-[11px] font-bold text-gray-600 uppercase">
-                      Clock Time
+                      Exact Clock Time
                     </label>
                     {!isCompleted && (
                       <button
                         type="button"
                         onClick={() => setIncidentMinute(formattedTime)}
                         className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer"
-                        title="Insert current countdown clock time"
+                        title="Reset to current countdown clock time"
                       >
-                        Now ({formattedTime})
+                        Reset to Now ({formattedTime})
                       </button>
                     )}
                   </div>
@@ -2235,13 +2384,22 @@ export function RemoteView({
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-bold outline-none"
                     required
                   />
+                  <span className="text-[10px] text-gray-400 mt-0.5 block">
+                    Preset to clock time when clicked • Editable
+                  </span>
                 </div>
               </div>
 
               {/* Player Scorer / Offender */}
               <div>
                 <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
-                  {incidentType === 'goal' ? 'Goal Scorer' : incidentType === 'penalty' ? 'Penalized Player' : 'Team / Coach'}
+                  {incidentType === 'goal'
+                    ? 'Goal Scorer'
+                    : incidentType === 'shot'
+                    ? 'Shot Maker (Player taking shot)'
+                    : incidentType === 'penalty'
+                    ? 'Penalized Player'
+                    : 'Team / Coach'}
                 </label>
                 <select
                   value={incidentPlayer}
@@ -2252,6 +2410,7 @@ export function RemoteView({
                   }}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer mb-1.5"
                 >
+                  <option value="">-- Select from Active Roster --</option>
                   {(incidentTeam === 'home' ? homeLineup : awayLineup).map(p => (
                     <option key={p.number} value={p.name}>
                       #{p.number} {p.name} ({p.pos})
@@ -2264,7 +2423,13 @@ export function RemoteView({
                   type="text"
                   value={incidentPlayer}
                   onChange={(e) => setIncidentPlayer(e.target.value)}
-                  placeholder="Player Name"
+                  placeholder={
+                    incidentType === 'goal'
+                      ? 'Goal Scorer Name (e.g. Connor Bedard)'
+                      : incidentType === 'shot'
+                      ? 'Shot Maker Name (e.g. Connor Bedard)'
+                      : 'Player Name'
+                  }
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none"
                   required
                 />
@@ -2366,6 +2531,174 @@ export function RemoteView({
                   className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
                 >
                   <span>{editingIncidentId ? 'Save Changes' : 'Record & Broadcast'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL 4B: SHOT MAKER MODAL --- */}
+      {isShotModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  Record Shot on Goal
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Select shot maker to update Shots on Goal for{' '}
+                  <strong className="text-gray-900">{shotTeam === 'home' ? homeName : awayName}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsShotModalOpen(false)}
+                className="text-gray-400 hover:text-gray-700 text-sm font-bold p-1 rounded-lg hover:bg-gray-100 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitShot} className="space-y-3.5">
+              {/* Team Selector */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
+                  Team Taking Shot
+                </label>
+                <div className="grid grid-cols-2 gap-1 bg-gray-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShotTeam('home');
+                      setShotPlayer(homeLineup[0]?.name || homeLineup[1]?.name || '');
+                    }}
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                      shotTeam === 'home' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-600'
+                    }`}
+                  >
+                    Home ({homeName})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShotTeam('away');
+                      setShotPlayer(awayLineup[0]?.name || awayLineup[1]?.name || '');
+                    }}
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                      shotTeam === 'away' ? 'bg-white text-amber-700 shadow-xs' : 'text-gray-600'
+                    }`}
+                  >
+                    Away ({awayName})
+                  </button>
+                </div>
+              </div>
+
+              {/* Game Period & Clock Time */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
+                    Game Period
+                  </label>
+                  <select
+                    value={shotPeriod}
+                    onChange={(e) => setShotPeriod(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
+                  >
+                    <option value="1">1st Period (P1)</option>
+                    <option value="2">2nd Period (P2)</option>
+                    <option value="3">3rd Period (P3)</option>
+                    <option value="OT">Overtime (OT)</option>
+                    <option value="SO">Shootout (SO)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase">
+                      Clock Time
+                    </label>
+                    {!isCompleted && (
+                      <button
+                        type="button"
+                        onClick={() => setShotMinute(formattedTime)}
+                        className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer"
+                        title="Reset to current clock time"
+                      >
+                        Reset to Now ({formattedTime})
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={shotMinute}
+                    onChange={(e) => setShotMinute(e.target.value)}
+                    placeholder="e.g. 14:22"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-bold outline-none"
+                    required
+                  />
+                  <span className="text-[10px] text-gray-400 mt-0.5 block">
+                    Preset to clock time when clicked • Editable
+                  </span>
+                </div>
+              </div>
+
+              {/* Shot Maker Selection */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
+                  Shot Maker (Player taking shot)
+                </label>
+                <select
+                  value={shotPlayer}
+                  onChange={(e) => {
+                    if (e.target.value !== 'custom') {
+                      setShotPlayer(e.target.value);
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer mb-1.5"
+                >
+                  <option value="">-- Select from Active Roster --</option>
+                  {(shotTeam === 'home' ? homeLineup : awayLineup).map((p) => (
+                    <option key={p.number} value={p.name}>
+                      #{p.number} {p.name} ({p.pos})
+                    </option>
+                  ))}
+                  <option value="custom">-- Custom Player (Type Below) --</option>
+                </select>
+
+                <input
+                  type="text"
+                  value={shotPlayer}
+                  onChange={(e) => setShotPlayer(e.target.value)}
+                  placeholder="Player Name (e.g. Connor Bedard)"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none"
+                  required
+                />
+              </div>
+
+              {/* Current SOG Preview */}
+              <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between text-xs">
+                <span className="text-gray-500 font-medium">Team SOG after recording:</span>
+                <span className="font-mono font-bold text-gray-900">
+                  {(shotTeam === 'home' ? homeShots : awayShots)} ➔ {(shotTeam === 'home' ? homeShots : awayShots) + 1}
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsShotModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 cursor-pointer"
+                >
+                  <span>Cancel</span>
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+                >
+                  <span>Record Shot (+1 SOG)</span>
                 </button>
               </div>
             </form>

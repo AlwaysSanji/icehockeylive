@@ -26,7 +26,6 @@ import {
   deleteMatchIncident,
   setMatchIncidents
 } from '../services/scoreboardService';
-import { arenaAudio } from '../components/GoalHorn';
 import { isFirebaseConfigured } from '../firebase/config';
 
 export function useScoreboard() {
@@ -34,16 +33,11 @@ export function useScoreboard() {
   const [matches, setMatches] = useState(getInitialMatches);
   const [activeMatchId, setActiveMatchId] = useState(getActiveMatchId);
   const [isFirebaseConnected] = useState(isFirebaseConfigured);
-  const lastHornRef = useRef(matchState?.lastHornTimestamp);
 
   useEffect(() => {
     const unsubscribe = subscribeToScoreboard((activeData, matchesList, currentActiveId) => {
       if (activeData) {
         setMatchState(activeData);
-        if (activeData.lastHornTimestamp && activeData.lastHornTimestamp !== lastHornRef.current) {
-          lastHornRef.current = activeData.lastHornTimestamp;
-          arenaAudio.playGoalHorn();
-        }
       }
       if (matchesList && Array.isArray(matchesList)) {
         setMatches(matchesList);
@@ -109,7 +103,7 @@ export function useScoreboard() {
     updateIncident: (incidentId, updatedData) => updateMatchIncident(matchState, incidentId, updatedData),
     deleteIncident: (incidentId, decrementScore) => deleteMatchIncident(matchState, incidentId, decrementScore),
     setIncidents: (eventsList) => setMatchIncidents(matchState, eventsList),
-    playPeriodBuzzer: () => arenaAudio.playPeriodBuzzer(),
+    playPeriodBuzzer: () => {},
     // Game Clock
     startClock: () => startClock(matchState),
     pauseClock: (currentRemaining) => pauseClock(matchState, currentRemaining),
@@ -118,7 +112,7 @@ export function useScoreboard() {
     setPeriod: (period) => setMatchPeriod(matchState, period),
     updateTeamDetails: (details) => updateTeamInfo(matchState, details),
     resetMatch: () => resetGame(matchState),
-    blastHorn: () => triggerRemoteHorn(matchState),
+    blastHorn: () => {},
     setExactClockTime: (seconds) => setExactClockTime(matchState, seconds),
     setExactScores: (scoreData) => setExactScores(matchState, scoreData),
     updateSchedule: (scheduleData) => updateSchedule(matchState, scheduleData)

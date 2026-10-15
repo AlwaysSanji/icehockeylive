@@ -105,8 +105,9 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
 
   // Filter events based on selected filter
   const filteredEvents = useMemo(() => {
-    if (activeFilter === 'goals') return allEvents.filter(e => e.type !== 'penalty');
+    if (activeFilter === 'goals') return allEvents.filter(e => e.type === 'goal');
     if (activeFilter === 'penalties') return allEvents.filter(e => e.type === 'penalty');
+    if (activeFilter === 'shots') return allEvents.filter(e => e.type === 'shot');
     return allEvents;
   }, [allEvents, activeFilter]);
 
@@ -208,6 +209,16 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
               <span>Goals Only</span>
             </button>
             <button
+              onClick={() => setActiveFilter('shots')}
+              className={`py-1 transition-colors cursor-pointer ${
+                activeFilter === 'shots'
+                  ? 'text-sky-600 border-b-2 border-sky-600 font-black'
+                  : 'text-gray-400 hover:text-gray-700 font-semibold'
+              }`}
+            >
+              <span>Shots</span>
+            </button>
+            <button
               onClick={() => setActiveFilter('penalties')}
               className={`py-1 transition-colors cursor-pointer ${
                 activeFilter === 'penalties'
@@ -244,7 +255,8 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
           {/* Incident Pins along the timeline */}
           {allEvents.map((evt) => {
             const pos = calculateTimelinePosition(evt.period, evt.time || evt.minute);
-            const isGoal = evt.type !== 'penalty';
+            const isGoal = evt.type === 'goal';
+            const isShot = evt.type === 'shot';
             const isHome = evt.team === 'home';
             const isHovered = hoveredEvent?.id === evt.id;
 
@@ -263,10 +275,12 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                       ? isHome
                         ? 'bg-blue-600 text-white ring-2 ring-blue-300'
                         : 'bg-amber-500 text-white ring-2 ring-amber-300'
-                      : 'bg-gray-700 text-amber-300 ring-2 ring-gray-400'
+                      : isShot
+                        ? 'bg-sky-500 text-white ring-2 ring-sky-300'
+                        : 'bg-gray-700 text-amber-300 ring-2 ring-gray-400'
                   }`}
                 >
-                  {isGoal ? (isHome ? 'H' : 'A') : 'P'}
+                  {isGoal ? (isHome ? 'H' : 'A') : isShot ? 'S' : 'P'}
                 </div>
 
                 {/* Tooltip on Hover */}
@@ -277,7 +291,7 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                       <span>{evt.score || ''}</span>
                     </div>
                     <div className="font-bold text-white mt-1">
-                      {isGoal ? `Goal: ${evt.scorer}` : `${evt.penaltyReason || 'Penalty'}`}
+                      {isGoal ? `Goal: ${evt.scorer}` : isShot ? `Shot: ${evt.shotPlayer || evt.player}` : `${evt.penaltyReason || 'Penalty'}`}
                     </div>
                     {evt.assist && (
                       <div className="text-[10px] text-gray-400 truncate">Assist: {evt.assist}</div>
@@ -299,6 +313,9 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-amber-600 font-extrabold">{awayName} Goal</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sky-600 font-extrabold">Shot on Goal</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-gray-700 font-extrabold">2 Min Penalty</span>
@@ -365,7 +382,8 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                 ) : (
                   <div className="relative pl-6 sm:pl-8 space-y-3 before:absolute before:left-3 sm:before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
                     {group.events.map((evt) => {
-                      const isGoal = evt.type !== 'penalty';
+                      const isGoal = evt.type === 'goal';
+                      const isShot = evt.type === 'shot';
                       const isHome = evt.team === 'home';
 
                       return (
@@ -378,7 +396,9 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                             className={`absolute -left-6 sm:-left-8 top-4 sm:top-1/2 -translate-y-1/2 w-2 h-2 ${
                               isGoal
                                 ? isHome ? 'bg-blue-600' : 'bg-amber-500'
-                                : 'bg-gray-700'
+                                : isShot
+                                  ? 'bg-sky-500'
+                                  : 'bg-gray-700'
                             }`}
                           ></div>
 
@@ -396,14 +416,16 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                                       ? isHome
                                         ? 'text-blue-600'
                                         : 'text-amber-600'
-                                      : 'text-gray-700'
+                                      : isShot
+                                        ? 'text-sky-600'
+                                        : 'text-gray-700'
                                   }`}
                                 >
-                                  {isGoal ? 'Goal' : '2 Min Penalty'}
+                                  {isGoal ? 'Goal' : isShot ? 'Shot on Goal' : '2 Min Penalty'}
                                 </span>
 
                                 <span className="font-bold text-gray-900 text-sm truncate">
-                                  {isGoal ? evt.scorer : evt.penaltyPlayer}
+                                  {isGoal ? evt.scorer : isShot ? (evt.shotPlayer || evt.player) : evt.penaltyPlayer}
                                 </span>
                               </div>
 
@@ -414,6 +436,8 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                                   ) : (
                                     <span>Unassisted</span>
                                   )
+                                ) : isShot ? (
+                                  <span>Shot Maker: <strong className="text-gray-700">{evt.shotPlayer || evt.player}</strong></span>
                                 ) : (
                                   <span>Infraction: <strong className="text-gray-700">{evt.penaltyReason || 'Tripping'}</strong></span>
                                 )}

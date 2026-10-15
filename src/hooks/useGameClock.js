@@ -1,10 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { formatTimeMMSS, calculateRemainingSeconds } from '../utils/timeFormatter';
-import { arenaAudio } from '../components/GoalHorn';
 
 export function useGameClock(clockState) {
   const [remaining, setRemaining] = useState(() => calculateRemainingSeconds(clockState));
-  const buzzerTriggeredRef = useRef(false);
 
   useEffect(() => {
     // Initial compute
@@ -12,7 +10,6 @@ export function useGameClock(clockState) {
     setRemaining(currentRemaining);
 
     if (!clockState?.running) {
-      buzzerTriggeredRef.current = false;
       return;
     }
 
@@ -20,11 +17,6 @@ export function useGameClock(clockState) {
     const interval = setInterval(() => {
       const computed = calculateRemainingSeconds(clockState);
       setRemaining(computed);
-
-      if (computed <= 0 && !buzzerTriggeredRef.current) {
-        buzzerTriggeredRef.current = true;
-        arenaAudio.playPeriodBuzzer();
-      }
     }, 100);
 
     return () => clearInterval(interval);
