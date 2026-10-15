@@ -28,10 +28,10 @@ export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' 
 
     try {
       const user = await loginUser(loginIdentifier, loginPassword);
-      setSuccess('Authenticated! Redirecting to operator remote...');
+      setSuccess('Authenticated! Redirecting to scoreboard...');
       setTimeout(() => {
         onAuthSuccess(user);
-      }, 400);
+      }, 200);
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -63,10 +63,10 @@ export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' 
         email,
         password: registerPassword
       });
-      setSuccess('Account created successfully with encrypted session! Redirecting...');
+      setSuccess('Account created successfully! Redirecting to scoreboard...');
       setTimeout(() => {
         onAuthSuccess(user);
-      }, 500);
+      }, 200);
     } catch (err) {
       setError(err.message || 'Registration failed.');
     } finally {

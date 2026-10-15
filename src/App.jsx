@@ -24,9 +24,12 @@ export default function App() {
   // View routing: 'list', 'detail', 'remote', or 'login'
   const [currentView, setCurrentView] = useState(() => {
     const hash = window.location.hash;
-    if (hash === '#login' || hash === '#register') return 'login';
+    const authedUser = getCurrentUser();
+    if (hash === '#login' || hash === '#register') {
+      return authedUser ? 'list' : 'login';
+    }
     if (hash === '#remote') {
-      return getCurrentUser() ? 'remote' : 'login';
+      return authedUser ? 'remote' : 'login';
     }
     if (hash === '#detail') return 'detail';
     return 'list';
@@ -40,19 +43,20 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
+      const authedUser = getCurrentUser();
       if (hash === '#login' || hash === '#register') {
-        setCurrentView('login');
+        setCurrentView(authedUser ? 'list' : 'login');
       } else if (hash === '#remote') {
-        setCurrentView(isLoggedIn ? 'remote' : 'login');
+        setCurrentView(authedUser ? 'remote' : 'login');
       } else if (hash === '#detail') {
         setCurrentView('detail');
-      } else if (hash === '#list') {
+      } else {
         setCurrentView('list');
       }
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [isLoggedIn]);
+  }, []);
 
   const changeView = (newView) => {
     setCurrentView(newView);
@@ -75,14 +79,10 @@ export default function App() {
     });
   }, []);
 
-  // Login / Register Success Handler
+  // Login / Register Success Handler - Route to live scoreboard
   const handleAuthSuccess = (user) => {
     setCurrentUser(user);
-    if (canUserAccessRemote(user)) {
-      changeView('remote');
-    } else {
-      changeView('list');
-    }
+    changeView('list');
   };
 
   // Logout Handler
