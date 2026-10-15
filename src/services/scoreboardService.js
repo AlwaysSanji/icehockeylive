@@ -8,6 +8,7 @@ const LOCAL_STORAGE_KEY = 'nhl_hockey_live_match';
 const LOCAL_STORAGE_MATCHES_KEY = 'nhl_hockey_matches_list';
 const LOCAL_STORAGE_ACTIVE_ID_KEY = 'nhl_hockey_active_match_id';
 const LOCAL_STORAGE_CUSTOM_TEAMS_KEY = 'nhl_hockey_custom_teams';
+const LOCAL_STORAGE_DELETED_TEAMS_KEY = 'nhl_hockey_deleted_teams';
 const BROADCAST_CHANNEL_NAME = 'nhl_hockey_sync_channel';
 
 // Web BroadcastChannel for instant local multi-tab sync
@@ -347,26 +348,112 @@ export function saveCustomTeam(teamData) {
   return newTeam;
 }
 
-// Delete an admin-created custom team
-export function deleteCustomTeam(teamId) {
-  if (!teamId) return;
-  const list = getCustomTeams().filter(t => t.id !== teamId);
+// Read all deleted team IDs (both official and custom)
+export function getDeletedTeamIds() {
+  if (typeof window === 'undefined') return [];
   try {
-    localStorage.setItem(LOCAL_STORAGE_CUSTOM_TEAMS_KEY, JSON.stringify(list));
+    const raw = localStorage.getItem(LOCAL_STORAGE_DELETED_TEAMS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// Delete any team from the league (official or custom)
+export function deleteLeagueTeam(teamId) {
+  if (!teamId) return;
+  // 1. If it's a custom team, also remove from custom teams storage
+  const customList = getCustomTeams().filter(t => t.id !== teamId);
+  try {
+    localStorage.setItem(LOCAL_STORAGE_CUSTOM_TEAMS_KEY, JSON.stringify(customList));
   } catch (e) {
     console.warn('Failed to delete custom team:', e);
   }
 
+  // 2. Add to deleted teams list
+  const deleted = getDeletedTeamIds();
+  if (!deleted.includes(teamId)) {
+    deleted.push(teamId);
+    try {
+      localStorage.setItem(LOCAL_STORAGE_DELETED_TEAMS_KEY, JSON.stringify(deleted));
+    } catch (e) {
+      console.warn('Failed to save deleted team:', e);
+    }
+  }
+
   if (channel) {
     channel.postMessage({
-      type: 'CUSTOM_TEAMS_UPDATED',
-      customTeams: list
+      type: 'LEAGUE_TEAMS_UPDATED',
+      deletedTeams: deleted,
+      customTeams: customList
     });
   }
 }
 
-// Read all League Teams (both Official NHL and Custom)
+// Restore a deleted team back to the league
+export function restoreLeagueTeam(teamId) {
+  if (!teamId) return;
+  const deleted = getDeletedTeamIds().filter(id => id !== teamId);
+  try {
+    localStorage.setItem(LOCAL_STORAGE_DELETED_TEAMS_KEY, JSON.stringify(deleted));
+  } catch (e) {
+    console.warn('Failed to restore team:', e);
+  }
+
+  if (channel) {
+    channel.postMessage({
+      type: 'LEAGUE_TEAMS_UPDATED',
+      deletedTeams: deleted
+    });
+  }
+}
+
+// Restore all deleted teams back to the league
+export function restoreAllLeagueTeams() {
+  try {
+    localStorage.removeItem(LOCAL_STORAGE_DELETED_TEAMS_KEY);
+  } catch (e) {
+    console.warn('Failed to restore all teams:', e);
+  }
+
+  if (channel) {
+    channel.postMessage({
+      type: 'LEAGUE_TEAMS_UPDATED',
+      deletedTeams: []
+    });
+  }
+}
+
+// Get deleted teams metadata for display in restore UI
+export function getDeletedLeagueTeams() {
+  const deletedIds = getDeletedTeamIds();
+  if (!deletedIds || deletedIds.length === 0) return [];
+  
+  const allPossibleTeams = [
+    ...Object.values(NHL_TEAMS).map(t => ({
+      id: t.id,
+      name: t.name,
+      shortCode: t.shortCode || t.name.slice(0, 3).toUpperCase(),
+      city: t.city || '',
+      stadium: t.stadium || 'Arena Stadium',
+      primaryColor: t.primaryColor || '#1e40af',
+      crestSvg: t.crestSvg,
+      isCustom: false
+    })),
+    ...getCustomTeams()
+  ];
+
+  return allPossibleTeams.filter(t => deletedIds.includes(t.id));
+}
+
+// Delete an admin-created custom team (legacy alias pointing to deleteLeagueTeam)
+export function deleteCustomTeam(teamId) {
+  deleteLeagueTeam(teamId);
+}
+
+// Read all League Teams (both Official NHL and Custom, excluding deleted teams)
 export function getAllLeagueTeams() {
+  const deletedIds = getDeletedTeamIds();
   const custom = getCustomTeams();
   const official = Object.values(NHL_TEAMS).map(t => {
     const customOverride = custom.find(c => c.id === t.id || c.name.toLowerCase() === t.name.toLowerCase());
@@ -395,7 +482,9 @@ export function getAllLeagueTeams() {
     isCustom: true
   }));
 
-  return [...official, ...customOnly];
+  const all = [...official, ...customOnly];
+  if (!deletedIds || deletedIds.length === 0) return all;
+  return all.filter(t => !deletedIds.includes(t.id));
 }
 
 // Read all League Players across all teams

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useGameClock } from '../hooks/useGameClock';
 import { NHL_TEAMS, getTeamLineup, suggestTeamLineup, generateTeamCrestSvg } from '../constants/hockeyData';
-import { getCustomTeams, saveCustomTeam, deleteCustomTeam } from '../services/scoreboardService';
+import { getCustomTeams, saveCustomTeam, deleteCustomTeam, getAllLeagueTeams, deleteLeagueTeam } from '../services/scoreboardService';
 import { AdminPanel } from './AdminPanel';
 import { LeagueManager } from './LeagueManager';
 import { UnifiedNavbar } from './UnifiedNavbar';
@@ -189,6 +189,11 @@ export function RemoteView({
       setCustomTeams(getCustomTeams());
     }
   }, [isAddModalOpen]);
+
+  // Available league teams (excluding any deleted teams)
+  const availableLeagueTeams = useMemo(() => {
+    return getAllLeagueTeams();
+  }, [isAddModalOpen, matches, customTeams]);
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [addHomeKey, setAddHomeKey] = useState('blackhawks');
   const [addHomeName, setAddHomeName] = useState('Chicago Blackhawks');
@@ -2125,17 +2130,22 @@ export function RemoteView({
                   <label className="block text-xs font-semibold text-gray-700">
                     Home Team
                   </label>
-                  {customTeams.some(t => t.id === addHomeKey) && (
+                  {addHomeKey !== 'custom' && (
                     <button
                       type="button"
                       onClick={() => {
-                        deleteCustomTeam(addHomeKey);
-                        setCustomTeams(getCustomTeams());
-                        handleHomeTeamChange('blackhawks');
+                        if (window.confirm(`Delete "${addHomeName}" from the league?`)) {
+                          deleteLeagueTeam(addHomeKey);
+                          setCustomTeams(getCustomTeams());
+                          const remaining = getAllLeagueTeams();
+                          if (remaining.length > 0) {
+                            handleHomeTeamChange(remaining[0].id);
+                          }
+                        }
                       }}
                       className="text-[11px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
                     >
-                      Delete Remembered Team
+                      Delete Team
                     </button>
                   )}
                 </div>
@@ -2144,22 +2154,13 @@ export function RemoteView({
                   onChange={(e) => handleHomeTeamChange(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:bg-white focus:border-blue-500 outline-none mb-2 cursor-pointer"
                 >
-                  <optgroup label="Official NHL Teams">
-                    {Object.entries(NHL_TEAMS).map(([key, team]) => (
-                      <option key={key} value={key}>
-                        {team.name} ({team.stadium})
+                  <optgroup label="Active League Teams">
+                    {availableLeagueTeams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name} ({team.stadium || 'Arena'})
                       </option>
                     ))}
                   </optgroup>
-                  {customTeams.length > 0 && (
-                    <optgroup label="Admin Created Teams (Remembered)">
-                      {customTeams.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name} ({team.stadium || 'Custom Venue'})
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
                   <option value="custom">+ Create New Custom Team...</option>
                 </select>
 
@@ -2190,17 +2191,24 @@ export function RemoteView({
                   <label className="block text-xs font-semibold text-gray-700">
                     Away Team
                   </label>
-                  {customTeams.some(t => t.id === addAwayKey) && (
+                  {addAwayKey !== 'custom' && (
                     <button
                       type="button"
                       onClick={() => {
-                        deleteCustomTeam(addAwayKey);
-                        setCustomTeams(getCustomTeams());
-                        handleAwayTeamChange('penguins');
+                        if (window.confirm(`Delete "${addAwayName}" from the league?`)) {
+                          deleteLeagueTeam(addAwayKey);
+                          setCustomTeams(getCustomTeams());
+                          const remaining = getAllLeagueTeams();
+                          if (remaining.length > 1) {
+                            handleAwayTeamChange(remaining[1].id);
+                          } else if (remaining.length > 0) {
+                            handleAwayTeamChange(remaining[0].id);
+                          }
+                        }
                       }}
                       className="text-[11px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
                     >
-                      Delete Remembered Team
+                      Delete Team
                     </button>
                   )}
                 </div>
@@ -2209,22 +2217,13 @@ export function RemoteView({
                   onChange={(e) => handleAwayTeamChange(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:bg-white focus:border-blue-500 outline-none mb-2 cursor-pointer"
                 >
-                  <optgroup label="Official NHL Teams">
-                    {Object.entries(NHL_TEAMS).map(([key, team]) => (
-                      <option key={key} value={key}>
+                  <optgroup label="Active League Teams">
+                    {availableLeagueTeams.map((team) => (
+                      <option key={team.id} value={team.id}>
                         {team.name}
                       </option>
                     ))}
                   </optgroup>
-                  {customTeams.length > 0 && (
-                    <optgroup label="Admin Created Teams (Remembered)">
-                      {customTeams.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
                   <option value="custom">+ Create New Custom Team...</option>
                 </select>
 

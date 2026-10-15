@@ -17,7 +17,12 @@ import {
   getAllLeagueTeams, 
   getAllLeaguePlayers, 
   saveCustomTeam, 
-  deleteCustomTeam, 
+  deleteCustomTeam,
+  deleteLeagueTeam,
+  getDeletedTeamIds,
+  restoreLeagueTeam,
+  restoreAllLeagueTeams,
+  getDeletedLeagueTeams,
   addPlayerToTeam, 
   deletePlayerFromTeam,
   calculateLeagueStandings,
@@ -35,6 +40,12 @@ export function LeagueManager({
   const [activeSubTab, setActiveSubTab] = useState(initialSubTab); // 'standings', 'teams', 'players'
   const [notification, setNotification] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [deletedTeamIds, setDeletedTeamIds] = useState(() => getDeletedTeamIds());
+  const [showDeletedTeams, setShowDeletedTeams] = useState(false);
+
+  useEffect(() => {
+    setDeletedTeamIds(getDeletedTeamIds());
+  }, [reloadKey]);
 
   // Standings Override Modal State
   const [editingTeamStanding, setEditingTeamStanding] = useState(null);
@@ -157,9 +168,26 @@ export function LeagueManager({
   };
 
   const handleDeleteTeam = (teamId, name) => {
-    if (window.confirm(`Are you sure you want to remove ${name} from custom teams?`)) {
-      deleteCustomTeam(teamId);
-      showNotification(`Team "${name}" removed`);
+    if (window.confirm(`Are you sure you want to delete "${name}" from the league? This team will be removed from standings, rosters, and match creation.`)) {
+      deleteLeagueTeam(teamId);
+      showNotification(`Team "${name}" deleted from the league`);
+      setDeletedTeamIds(getDeletedTeamIds());
+      setReloadKey(k => k + 1);
+    }
+  };
+
+  const handleRestoreTeam = (teamId, name) => {
+    restoreLeagueTeam(teamId);
+    showNotification(`Team "${name}" restored to the league`);
+    setDeletedTeamIds(getDeletedTeamIds());
+    setReloadKey(k => k + 1);
+  };
+
+  const handleRestoreAllTeams = () => {
+    if (window.confirm('Restore all deleted teams back to the league?')) {
+      restoreAllLeagueTeams();
+      showNotification('All deleted teams have been restored to the league');
+      setDeletedTeamIds([]);
       setReloadKey(k => k + 1);
     }
   };
@@ -408,14 +436,24 @@ export function LeagueManager({
                         </td>
                         {!isReadOnly && (
                           <td className="py-3 px-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => openStandingsOverride(team)}
-                              className="p-1.5 rounded-lg bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-blue-700 font-sans text-[11px] font-bold transition-colors cursor-pointer"
-                              title="Edit team standings record"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openStandingsOverride(team)}
+                                className="p-1.5 rounded-lg bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-blue-700 font-sans text-[11px] font-bold transition-colors cursor-pointer"
+                                title="Edit team standings record"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTeam(team.id, team.name)}
+                                className="p-1.5 rounded-lg bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-600 font-sans text-[11px] font-bold transition-colors cursor-pointer"
+                                title={`Delete ${team.name} from league`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -449,6 +487,68 @@ export function LeagueManager({
             </div>
           </div>
 
+          {/* Deleted Teams Restoration Banner */}
+          {deletedTeamIds.length > 0 && !isReadOnly && (
+            <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-4 shadow-2xs">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shrink-0">
+                    <RotateCcw className="w-4 h-4 text-amber-700" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-amber-900 text-xs">
+                      {deletedTeamIds.length} Team{deletedTeamIds.length > 1 ? 's' : ''} Deleted from League
+                    </div>
+                    <p className="text-[11px] text-amber-700 mt-0.5">
+                      Deleted teams are excluded from standings, rosters, and match schedules.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeletedTeams(prev => !prev)}
+                    className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl font-bold transition-colors cursor-pointer"
+                  >
+                    {showDeletedTeams ? 'Hide Details' : `View Deleted (${deletedTeamIds.length})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRestoreAllTeams}
+                    className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 shrink-0"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Restore All</span>
+                  </button>
+                </div>
+              </div>
+
+              {showDeletedTeams && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-3 border-t border-amber-200/60 mt-3">
+                  {getDeletedLeagueTeams().map(delTeam => (
+                    <div key={delTeam.id} className="bg-white/90 p-2.5 rounded-xl border border-amber-200 flex items-center justify-between gap-2 shadow-2xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-7 h-7 shrink-0 flex items-center justify-center drop-shadow-2xs"
+                          dangerouslySetInnerHTML={{ __html: delTeam.crestSvg }}
+                        />
+                        <span className="font-bold text-gray-800 text-xs truncate">{delTeam.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreTeam(delTeam.id, delTeam.name)}
+                        className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold transition-colors cursor-pointer shrink-0"
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredTeams.map((team) => (
               <div 
@@ -474,16 +574,17 @@ export function LeagueManager({
 
                 <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
                   <span className="font-mono text-[11px] font-semibold text-gray-600">
-                    {team.playerCount} Players on Roster
+                    {team.lineup?.length || team.playerCount || 0} Players on Roster
                   </span>
-                  {!isReadOnly && team.isCustom && (
+                  {!isReadOnly && (
                     <button
                       type="button"
                       onClick={() => handleDeleteTeam(team.id, team.name)}
-                      className="text-red-500 hover:text-red-700 text-[11px] font-bold p-1 rounded-lg hover:bg-red-50 cursor-pointer"
-                      title="Delete custom team"
+                      className="text-red-500 hover:text-red-700 text-xs font-bold py-1 px-2 rounded-lg hover:bg-red-50 transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                      title={`Delete ${team.name} from league`}
                     >
-                      Delete Team
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Team</span>
                     </button>
                   )}
                 </div>
