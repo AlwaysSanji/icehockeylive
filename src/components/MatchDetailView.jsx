@@ -80,8 +80,8 @@ export function MatchDetailView({ matchState, onBackToList, onOpenRemote, isLogg
 
   // Goal Events for this specific match
   const matchEvents = useMemo(() => {
-    if (matchState.events && matchState.events.length > 0) {
-      return matchState.events;
+    if (matchState?.events && matchState.events.length > 0) {
+      return matchState.events.filter(e => e.type === 'goal' || e.scorer);
     }
 
     // For live matches or when events are an explicit array, strictly display what admin has set

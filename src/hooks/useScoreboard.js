@@ -99,10 +99,38 @@ export function useScoreboard() {
     decrementAwayShots: () => adjustShots(matchState, 'away', -1),
     // Power Play & Incidents
     setPowerPlay: (team) => setPowerPlay(matchState, team),
-    addIncident: (incident) => addMatchIncident(matchState, incident),
-    updateIncident: (incidentId, updatedData) => updateMatchIncident(matchState, incidentId, updatedData),
-    deleteIncident: (incidentId, decrementScore) => deleteMatchIncident(matchState, incidentId, decrementScore),
-    setIncidents: (eventsList) => setMatchIncidents(matchState, eventsList),
+    addIncident: async (incident) => {
+      const updated = await addMatchIncident(matchState, incident);
+      if (updated) {
+        setMatchState(updated);
+        setMatches(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+      }
+      return updated;
+    },
+    updateIncident: async (incidentId, updatedData) => {
+      const updated = await updateMatchIncident(matchState, incidentId, updatedData);
+      if (updated) {
+        setMatchState(updated);
+        setMatches(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+      }
+      return updated;
+    },
+    deleteIncident: async (incidentId, decrementScore, decrementShots) => {
+      const updated = await deleteMatchIncident(matchState, incidentId, decrementScore, decrementShots);
+      if (updated) {
+        setMatchState(updated);
+        setMatches(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+      }
+      return updated;
+    },
+    setIncidents: async (eventsList) => {
+      const updated = await setMatchIncidents(matchState, eventsList);
+      if (updated) {
+        setMatchState(updated);
+        setMatches(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+      }
+      return updated;
+    },
     playPeriodBuzzer: () => {},
     // Game Clock
     startClock: () => startClock(matchState),

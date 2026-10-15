@@ -20,6 +20,9 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
   }
 }
 
+// In-memory subscribers set for instant same-tab reactive state updates
+const localSubscribers = new Set();
+
 // Read matches list from localStorage or fallback to defaults
 export function getInitialMatches() {
   if (typeof window === 'undefined') return DEFAULT_MATCHES_LIST;
@@ -74,6 +77,9 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8008/api';
 export function subscribeToScoreboard(callback) {
   let unsubscribeFirestore = null;
   let lastSeenTimestamp = 0;
+
+  // Register in local subscribers set for instant same-tab reactive state updates
+  localSubscribers.add(callback);
 
   // 1. Initial & Continuous Sync via PHP Laravel Backend API (for ALL viewers & devices)
   const syncWithBackend = async () => {
@@ -171,6 +177,7 @@ export function subscribeToScoreboard(callback) {
 
   // Return unsubscribe cleanup function
   return () => {
+    localSubscribers.delete(callback);
     clearInterval(pollingInterval);
     if (unsubscribeFirestore) unsubscribeFirestore();
     if (channel) channel.removeEventListener('message', onBroadcastMessage);
@@ -205,6 +212,15 @@ export async function updateMatchState(newState) {
     updatedMatches.unshift(payload);
   }
   localStorage.setItem(LOCAL_STORAGE_MATCHES_KEY, JSON.stringify(updatedMatches));
+
+  // Instantly notify all local subscribers in this tab (zero latency, no network needed)
+  localSubscribers.forEach(cb => {
+    try {
+      cb(payload, updatedMatches, payload.id);
+    } catch (e) {
+      console.warn('Error in local subscriber callback:', e);
+    }
+  });
 
   if (channel) {
     channel.postMessage({
@@ -575,62 +591,109 @@ export async function selectActiveMatch(matchId) {
 
 // Score adjustment helpers
 export async function adjustScore(currentState, team, delta) {
-  const currentScore = currentState[team]?.score || 0;
+  const latest = getInitialMatchState();
+  const base = (latest && latest.id === currentState?.id) ? latest : currentState;
+  const currentScore = base[team]?.score || 0;
   const newScore = Math.max(0, currentScore + delta);
 
   const updatedState = {
-    ...currentState,
+    ...base,
     [team]: {
-      ...currentState[team],
+      ...base[team],
       score: newScore
     }
   };
 
   await updateMatchState(updatedState);
+  return updatedState;
 }
 
 // Shots on Goal (SOG) adjustment
 export async function adjustShots(currentState, team, delta) {
-  const currentShots = currentState[team]?.shots !== undefined ? currentState[team].shots : (currentState[team]?.score ? currentState[team].score * 6 + 10 : 25);
+  const latest = getInitialMatchState();
+  const base = (latest && latest.id === currentState?.id) ? latest : currentState;
+  const currentShots = base[team]?.shots !== undefined ? base[team].shots : (base[team]?.score ? base[team].score * 6 + 10 : 25);
   const newShots = Math.max(0, currentShots + delta);
 
   const updatedState = {
-    ...currentState,
+    ...base,
     [team]: {
-      ...currentState[team],
+      ...base[team],
       shots: newShots
     }
   };
 
   await updateMatchState(updatedState);
+  return updatedState;
 }
 
 // Power Play toggle (team: 'home', 'away', or null)
 export async function setPowerPlay(currentState, team) {
-  const currentPP = currentState.powerPlay;
+  const latest = getInitialMatchState();
+  const base = (latest && latest.id === currentState?.id) ? latest : currentState;
+  const currentPP = base.powerPlay;
   const newPP = currentPP === team ? null : team;
 
   const updatedState = {
-    ...currentState,
+    ...base,
     powerPlay: newPP
   };
 
   await updateMatchState(updatedState);
+  return updatedState;
 }
 
 // Add a live match incident (goal, penalty, timeout) to the match timeline
 export async function addMatchIncident(currentState, incident) {
-  const currentEvents = Array.isArray(currentState.events) ? currentState.events : [];
+  const latest = getInitialMatchState();
+  const base = (latest && latest.id === currentState?.id) ? latest : currentState;
+  const currentEvents = Array.isArray(base.events) ? base.events : [];
+
+  const eventType = incident.type || (incident.scorer ? 'goal' : incident.shotPlayer ? 'shot' : incident.penaltyPlayer ? 'penalty' : 'goal');
+
   const newEvent = {
     id: incident.id || Date.now().toString(),
     createdAt: Date.now(),
+    type: eventType,
     ...incident
   };
 
-  const updatedState = {
-    ...currentState,
+  let updatedState = {
+    ...base,
     events: [newEvent, ...currentEvents]
   };
+
+  // If this is a goal and team is provided, increment score atomically if requested
+  if (eventType === 'goal' && incident.team && incident.incrementScore !== false) {
+    const team = incident.team;
+    const currentScore = updatedState[team]?.score || 0;
+    const newScore = currentScore + 1;
+    updatedState = {
+      ...updatedState,
+      [team]: {
+        ...updatedState[team],
+        score: newScore
+      }
+    };
+    if (!newEvent.score) {
+      const hScore = updatedState.home?.score ?? 0;
+      const aScore = updatedState.away?.score ?? 0;
+      newEvent.score = `${hScore} - ${aScore}`;
+    }
+  }
+
+  // If this is a shot and team is provided, increment shots atomically if requested
+  if (eventType === 'shot' && incident.team && incident.incrementShots !== false) {
+    const team = incident.team;
+    const currentShots = updatedState[team]?.shots !== undefined ? updatedState[team].shots : 0;
+    updatedState = {
+      ...updatedState,
+      [team]: {
+        ...updatedState[team],
+        shots: currentShots + 1
+      }
+    };
+  }
 
   await updateMatchState(updatedState);
   return updatedState;
@@ -638,7 +701,9 @@ export async function addMatchIncident(currentState, incident) {
 
 // Update / Edit an existing timeline incident
 export async function updateMatchIncident(currentState, incidentId, updatedIncident) {
-  const currentEvents = Array.isArray(currentState.events) ? currentState.events : [];
+  const latest = getInitialMatchState();
+  const base = (latest && latest.id === currentState?.id) ? latest : currentState;
+  const currentEvents = Array.isArray(base.events) ? base.events : [];
   const updatedEvents = currentEvents.map(evt => {
     if (String(evt.id) === String(incidentId)) {
       return {
@@ -651,7 +716,7 @@ export async function updateMatchIncident(currentState, incidentId, updatedIncid
   });
 
   const updatedState = {
-    ...currentState,
+    ...base,
     events: updatedEvents
   };
 
@@ -659,23 +724,34 @@ export async function updateMatchIncident(currentState, incidentId, updatedIncid
   return updatedState;
 }
 
-// Delete an incident from the timeline (with optional score rollback if it was a goal)
-export async function deleteMatchIncident(currentState, incidentId, decrementScore = false) {
-  const currentEvents = Array.isArray(currentState.events) ? currentState.events : [];
+// Delete an incident from the timeline (with optional score rollback if it was a goal or shot)
+export async function deleteMatchIncident(currentState, incidentId, decrementScore = false, decrementShots = false) {
+  const latest = getInitialMatchState();
+  const base = (latest && latest.id === currentState?.id) ? latest : currentState;
+  const currentEvents = Array.isArray(base.events) ? base.events : [];
   const target = currentEvents.find(evt => String(evt.id) === String(incidentId));
   const remainingEvents = currentEvents.filter(evt => String(evt.id) !== String(incidentId));
 
   let updatedState = {
-    ...currentState,
+    ...base,
     events: remainingEvents
   };
 
   // If a goal is deleted and requested, rollback score
-  if (decrementScore && target?.type === 'goal' && target?.team) {
+  if (decrementScore && (target?.type === 'goal' || target?.scorer) && target?.team) {
     const currentScore = updatedState[target.team]?.score || 0;
     updatedState[target.team] = {
       ...updatedState[target.team],
       score: Math.max(0, currentScore - 1)
+    };
+  }
+
+  // If a shot is deleted and requested, rollback shots
+  if (decrementShots && (target?.type === 'shot' || target?.shotPlayer) && target?.team) {
+    const currentShots = updatedState[target.team]?.shots || 0;
+    updatedState[target.team] = {
+      ...updatedState[target.team],
+      shots: Math.max(0, currentShots - 1)
     };
   }
 

@@ -297,12 +297,22 @@ export function RemoteView({
     }
   };
 
+  // Helper to normalize event type in RemoteView
+  const getNormalizedEventType = (evt) => {
+    if (!evt) return 'goal';
+    if (evt.type) return evt.type;
+    if (evt.scorer) return 'goal';
+    if (evt.shotPlayer) return 'shot';
+    if (evt.penaltyPlayer || evt.penaltyReason) return 'penalty';
+    return 'goal';
+  };
+
   // Chronological events array for active match
   const currentEvents = Array.isArray(matchState?.events) ? matchState.events : [];
   const filteredEvents = useMemo(() => {
-    if (timelineFilter === 'goal') return currentEvents.filter(e => e.type === 'goal');
-    if (timelineFilter === 'penalty') return currentEvents.filter(e => e.type === 'penalty');
-    if (timelineFilter === 'shot') return currentEvents.filter(e => e.type === 'shot');
+    if (timelineFilter === 'goal') return currentEvents.filter(e => getNormalizedEventType(e) === 'goal');
+    if (timelineFilter === 'penalty') return currentEvents.filter(e => getNormalizedEventType(e) === 'penalty');
+    if (timelineFilter === 'shot') return currentEvents.filter(e => getNormalizedEventType(e) === 'shot');
     return currentEvents;
   }, [currentEvents, timelineFilter]);
 
@@ -359,18 +369,11 @@ export function RemoteView({
   // Submit Shot on Goal with Shot Maker
   const handleSubmitShot = async (e) => {
     e.preventDefault();
-    const periodLabel = `P${shotPeriod || matchState?.period || '1'}`;
-    const timeLabel = shotMinute || formattedTime;
+    const periodLabel = shotPeriod?.startsWith('P') ? shotPeriod : `P${shotPeriod || matchState?.period || '1'}`;
+    const timeLabel = shotMinute || formattedTime || '10:00';
     const teamName = shotTeam === 'home' ? homeName : awayName;
-    const currentTeamShots = (shotTeam === 'home' ? homeShots : awayShots) + 1;
 
     try {
-      if (shotTeam === 'home') {
-        scoreboard.incrementHomeShots();
-      } else {
-        scoreboard.incrementAwayShots();
-      }
-
       if (scoreboard.addIncident) {
         await scoreboard.addIncident({
           time: timeLabel,
@@ -379,7 +382,7 @@ export function RemoteView({
           type: 'shot',
           shotPlayer: shotPlayer || `${teamName} Shooter`,
           player: shotPlayer || `${teamName} Shooter`,
-          shotsCount: currentTeamShots,
+          incrementShots: true,
           text: `Shot on Goal by ${shotPlayer || `${teamName} Shooter`} (${teamName})`
         });
       }
@@ -393,8 +396,8 @@ export function RemoteView({
   // Submit Incident Logger (Add or Edit)
   const handleSubmitIncident = async (e) => {
     e.preventDefault();
-    const periodLabel = `P${incidentPeriod || matchState?.period || '1'}`;
-    const timeLabel = incidentMinute || formattedTime;
+    const periodLabel = incidentPeriod?.startsWith('P') ? incidentPeriod : `P${incidentPeriod || matchState?.period || '1'}`;
+    const timeLabel = incidentMinute || formattedTime || '10:00';
     const teamName = incidentTeam === 'home' ? homeName : awayName;
 
     try {
@@ -430,15 +433,6 @@ export function RemoteView({
       } else {
         // Create new incident
         if (incidentType === 'goal') {
-          if (incidentTeam === 'home') {
-            scoreboard.incrementHomeScore();
-          } else {
-            scoreboard.incrementAwayScore();
-          }
-
-          const newHomeScore = homeScore + (incidentTeam === 'home' ? 1 : 0);
-          const newAwayScore = awayScore + (incidentTeam === 'away' ? 1 : 0);
-
           if (scoreboard.addIncident) {
             await scoreboard.addIncident({
               time: timeLabel,
@@ -448,18 +442,11 @@ export function RemoteView({
               scorer: incidentPlayer || `${teamName} Forward`,
               assist: incidentAssist || '',
               goalType: incidentGoalType,
-              score: `${newHomeScore} - ${newAwayScore}`,
-              text: `Goal! ${teamName} (${newHomeScore} - ${newAwayScore})`
+              incrementScore: true,
+              text: `Goal! ${teamName} - ${incidentPlayer || `${teamName} Forward`}`
             });
           }
         } else if (incidentType === 'shot') {
-          if (incidentTeam === 'home') {
-            scoreboard.incrementHomeShots();
-          } else {
-            scoreboard.incrementAwayShots();
-          }
-
-          const currentTeamShots = (incidentTeam === 'home' ? homeShots : awayShots) + 1;
           if (scoreboard.addIncident) {
             await scoreboard.addIncident({
               time: timeLabel,
@@ -468,7 +455,7 @@ export function RemoteView({
               type: 'shot',
               shotPlayer: incidentPlayer || `${teamName} Shooter`,
               player: incidentPlayer || `${teamName} Shooter`,
-              shotsCount: currentTeamShots,
+              incrementShots: true,
               text: `Shot on Goal by ${incidentPlayer || `${teamName} Shooter`} (${teamName})`
             });
           }
@@ -482,7 +469,7 @@ export function RemoteView({
               penaltyPlayer: incidentPlayer || `${teamName} Player`,
               penaltyMin: incidentPenaltyMins,
               penaltyReason: incidentPenaltyReason,
-              text: `${incidentPenaltyMins} Min Penalty (${incidentPenaltyReason}) - ${incidentPlayer}`
+              text: `${incidentPenaltyMins} Min Penalty (${incidentPenaltyReason}) - ${incidentPlayer || `${teamName} Player`}`
             });
           }
           if (scoreboard.setPowerPlay) {
@@ -515,14 +502,7 @@ export function RemoteView({
     }
     try {
       if (scoreboard.deleteIncident) {
-        await scoreboard.deleteIncident(incidentId, false);
-      }
-      if (isGoal) {
-        if (team === 'home') scoreboard.decrementHomeScore();
-        else scoreboard.decrementAwayScore();
-      } else if (isShot) {
-        if (team === 'home') scoreboard.decrementHomeShots();
-        else scoreboard.decrementAwayShots();
+        await scoreboard.deleteIncident(incidentId, isGoal, isShot);
       }
     } catch (err) {
       console.error('Failed to delete incident:', err);
@@ -1481,9 +1461,10 @@ export function RemoteView({
             ) : (
               <div className="space-y-2.5">
                 {filteredEvents.map((evt) => {
-                  const isGoal = evt.type === 'goal';
-                  const isPenalty = evt.type === 'penalty';
-                  const isShot = evt.type === 'shot';
+                  const evtType = getNormalizedEventType(evt);
+                  const isGoal = evtType === 'goal';
+                  const isPenalty = evtType === 'penalty';
+                  const isShot = evtType === 'shot';
                   const isHome = evt.team === 'home';
                   const evtTeamName = isHome ? homeName : awayName;
 
@@ -1509,7 +1490,7 @@ export function RemoteView({
                             </span>
                             <span className="text-gray-300">•</span>
                             <span className="text-xs font-bold text-gray-900 truncate">
-                              {isGoal ? evt.scorer : isShot ? (evt.shotPlayer || evt.player) : isPenalty ? evt.penaltyPlayer : evtTeamName}
+                              {isGoal ? (evt.scorer || 'Goal Scored') : isShot ? (evt.shotPlayer || evt.player || 'Shot on Goal') : isPenalty ? (evt.penaltyPlayer || evt.player || 'Penalized Player') : evtTeamName}
                             </span>
                             {evt.score && (
                               <span className="font-mono text-xs font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
@@ -1546,7 +1527,7 @@ export function RemoteView({
                       <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
                         <button
                           type="button"
-                          onClick={() => openIncidentLogger(evt.team, evt.type, evt)}
+                          onClick={() => openIncidentLogger(evt.team, evtType, evt)}
                           className="px-2.5 py-1 text-xs font-semibold text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                           title="Edit this incident"
                         >

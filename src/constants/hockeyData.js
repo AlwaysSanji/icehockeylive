@@ -164,14 +164,14 @@ export const DEFAULT_MATCH_STATE = {
   league: 'NHL',
   country: 'USA',
   events: [
-    { id: 1, time: '05:12', period: 'P1', team: 'home', scorer: 'C. Bedard', assist: 'N. Foligno', text: 'Goal! Chicago Blackhawks (1 - 0)' },
-    { id: 2, time: '12:30', period: 'P1', team: 'away', scorer: 'S. Crosby', assist: 'E. Malkin', text: 'Goal! Pittsburgh Penguins (1 - 1)' },
-    { id: 3, time: '17:44', period: 'P1', team: 'home', scorer: 'J. Dickinson', assist: 'S. Jones', text: 'Goal! Chicago Blackhawks (2 - 1)' },
-    { id: 4, time: '28:15', period: 'P2', team: 'away', scorer: 'B. Rust', assist: 'E. Karlsson', text: 'Goal! Pittsburgh Penguins (2 - 2)' },
-    { id: 5, time: '36:40', period: 'P2', team: 'home', scorer: 'T. Hall', assist: 'C. Bedard', text: 'Goal! Chicago Blackhawks (3 - 2)' },
-    { id: 6, time: '44:22', period: 'P3', team: 'home', scorer: 'C. Bedard', assist: 'T. Teravainen', text: 'Goal! Chicago Blackhawks (4 - 2)' },
-    { id: 7, time: '52:10', period: 'P3', team: 'away', scorer: 'E. Malkin', assist: 'K. Letang', text: 'Goal! Pittsburgh Penguins (4 - 3)' },
-    { id: 8, time: '59:18', period: 'P3', team: 'home', scorer: 'N. Foligno', assist: 'Empty Net', text: 'Goal! Chicago Blackhawks (5 - 3)' }
+    { id: 1, type: 'goal', time: '05:12', period: 'P1', team: 'home', scorer: 'C. Bedard', assist: 'N. Foligno', text: 'Goal! Chicago Blackhawks (1 - 0)', score: '1 - 0' },
+    { id: 2, type: 'goal', time: '12:30', period: 'P1', team: 'away', scorer: 'S. Crosby', assist: 'E. Malkin', text: 'Goal! Pittsburgh Penguins (1 - 1)', score: '1 - 1' },
+    { id: 3, type: 'goal', time: '17:44', period: 'P1', team: 'home', scorer: 'J. Dickinson', assist: 'S. Jones', text: 'Goal! Chicago Blackhawks (2 - 1)', score: '2 - 1' },
+    { id: 4, type: 'goal', time: '28:15', period: 'P2', team: 'away', scorer: 'B. Rust', assist: 'E. Karlsson', text: 'Goal! Pittsburgh Penguins (2 - 2)', score: '2 - 2' },
+    { id: 5, type: 'goal', time: '36:40', period: 'P2', team: 'home', scorer: 'T. Hall', assist: 'C. Bedard', text: 'Goal! Chicago Blackhawks (3 - 2)', score: '3 - 2' },
+    { id: 6, type: 'goal', time: '44:22', period: 'P3', team: 'home', scorer: 'C. Bedard', assist: 'T. Teravainen', text: 'Goal! Chicago Blackhawks (4 - 2)', score: '4 - 2' },
+    { id: 7, type: 'goal', time: '52:10', period: 'P3', team: 'away', scorer: 'E. Malkin', assist: 'K. Letang', text: 'Goal! Pittsburgh Penguins (4 - 3)', score: '4 - 3' },
+    { id: 8, type: 'goal', time: '59:18', period: 'P3', team: 'home', scorer: 'N. Foligno', assist: 'Empty Net', text: 'Goal! Chicago Blackhawks (5 - 3)', score: '5 - 3' }
   ]
 };
 

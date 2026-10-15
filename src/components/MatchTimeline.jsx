@@ -13,6 +13,28 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
     return getTeamLineup(matchState?.away?.id, awayName);
   }, [matchState?.away?.id, awayName]);
 
+  // Helper to normalize event type (goal, shot, penalty, timeout)
+  const getNormalizedType = (evt) => {
+    if (!evt) return 'goal';
+    if (evt.type) return evt.type;
+    if (evt.scorer) return 'goal';
+    if (evt.shotPlayer) return 'shot';
+    if (evt.penaltyPlayer || evt.penaltyReason) return 'penalty';
+    return 'goal';
+  };
+
+  // Helper to normalize period to P1, P2, P3, OT, SO
+  const normalizePeriod = (p) => {
+    if (!p) return 'P1';
+    const clean = String(p).toUpperCase().trim();
+    if (clean === '1' || clean === 'P1') return 'P1';
+    if (clean === '2' || clean === 'P2') return 'P2';
+    if (clean === '3' || clean === 'P3') return 'P3';
+    if (clean === 'OT') return 'OT';
+    if (clean === 'SO') return 'SO';
+    return 'P1';
+  };
+
   // Compute all chronological events for this match
   const allEvents = useMemo(() => {
     if (matchState?.events && matchState.events.length > 0) {
@@ -24,6 +46,8 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
     if (isLiveOrUpcoming || Array.isArray(matchState?.events)) {
       return [];
     }
+
+    const generated = [];
     let evtId = 1;
 
     const p1H = matchState?.periodScores?.p1?.home ?? 0;
@@ -105,10 +129,13 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
 
   // Filter events based on selected filter
   const filteredEvents = useMemo(() => {
-    if (activeFilter === 'goals') return allEvents.filter(e => e.type === 'goal');
-    if (activeFilter === 'penalties') return allEvents.filter(e => e.type === 'penalty');
-    if (activeFilter === 'shots') return allEvents.filter(e => e.type === 'shot');
-    return allEvents;
+    return allEvents.filter(e => {
+      const type = getNormalizedType(e);
+      if (activeFilter === 'goals') return type === 'goal';
+      if (activeFilter === 'penalties') return type === 'penalty';
+      if (activeFilter === 'shots') return type === 'shot';
+      return true;
+    });
   }, [allEvents, activeFilter]);
 
   // Group events by period
@@ -122,7 +149,7 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
     };
 
     filteredEvents.forEach(evt => {
-      const p = evt.period || 'P1';
+      const p = normalizePeriod(evt.period);
       if (groups[p]) {
         groups[p].events.push(evt);
       } else {
@@ -140,14 +167,15 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
       min = parseInt(String(minuteStr).split(':')[0], 10) || 5;
     }
 
+    const normPeriod = normalizePeriod(period);
     let totalGameMinutes = 0;
-    if (period === 'P1') {
+    if (normPeriod === 'P1') {
       totalGameMinutes = Math.min(20, min);
-    } else if (period === 'P2') {
+    } else if (normPeriod === 'P2') {
       totalGameMinutes = 20 + Math.min(20, min);
-    } else if (period === 'P3') {
+    } else if (normPeriod === 'P3') {
       totalGameMinutes = 40 + Math.min(20, min);
-    } else if (period === 'OT') {
+    } else if (normPeriod === 'OT') {
       totalGameMinutes = 60 + Math.min(5, min);
     }
 
@@ -255,8 +283,9 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
           {/* Incident Pins along the timeline */}
           {allEvents.map((evt) => {
             const pos = calculateTimelinePosition(evt.period, evt.time || evt.minute);
-            const isGoal = evt.type === 'goal';
-            const isShot = evt.type === 'shot';
+            const type = getNormalizedType(evt);
+            const isGoal = type === 'goal';
+            const isShot = type === 'shot';
             const isHome = evt.team === 'home';
             const isHovered = hoveredEvent?.id === evt.id;
 
@@ -382,8 +411,10 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                 ) : (
                   <div className="relative pl-6 sm:pl-8 space-y-3 before:absolute before:left-3 sm:before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
                     {group.events.map((evt) => {
-                      const isGoal = evt.type === 'goal';
-                      const isShot = evt.type === 'shot';
+                      const type = getNormalizedType(evt);
+                      const isGoal = type === 'goal';
+                      const isShot = type === 'shot';
+                      const isPenalty = type === 'penalty';
                       const isHome = evt.team === 'home';
 
                       return (
@@ -421,11 +452,11 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                                         : 'text-gray-700'
                                   }`}
                                 >
-                                  {isGoal ? 'Goal' : isShot ? 'Shot on Goal' : '2 Min Penalty'}
+                                  {isGoal ? 'Goal' : isShot ? 'Shot on Goal' : isPenalty ? `${evt.penaltyMin || 2} Min Penalty` : 'Timeout'}
                                 </span>
 
                                 <span className="font-bold text-gray-900 text-sm truncate">
-                                  {isGoal ? evt.scorer : isShot ? (evt.shotPlayer || evt.player) : evt.penaltyPlayer}
+                                  {isGoal ? (evt.scorer || 'Goal Scored') : isShot ? (evt.shotPlayer || evt.player || 'Shot') : (evt.penaltyPlayer || evt.player || 'Player')}
                                 </span>
                               </div>
 
@@ -438,8 +469,10 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                                   )
                                 ) : isShot ? (
                                   <span>Shot Maker: <strong className="text-gray-700">{evt.shotPlayer || evt.player}</strong></span>
-                                ) : (
+                                ) : isPenalty ? (
                                   <span>Infraction: <strong className="text-gray-700">{evt.penaltyReason || 'Tripping'}</strong></span>
+                                ) : (
+                                  <span>30-Second Timeout</span>
                                 )}
                               </div>
                             </div>
