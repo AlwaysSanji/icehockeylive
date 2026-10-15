@@ -652,7 +652,7 @@ export async function addMatch(matchData) {
     date: matchData.date || 'Wed, Oct 14, 2026',
     dateTime: matchData.dateTime || `${matchData.date || 'Wed, Oct 14, 2026'} 19:00`,
     referee: matchData.referee || 'Furlatt E.',
-    league: 'NHL',
+    league: 'League',
     country: 'USA',
     status: matchData.status || (matchData.period === 'FT' ? 'Finished' : (matchData.period === 'UPCOMING' ? 'Upcoming' : 'Live')),
     statusBadge: matchData.statusBadge || (matchData.period === 'FT' ? 'FT' : (matchData.period === 'UPCOMING' ? '19:00' : 'P1')),
@@ -868,8 +868,9 @@ export async function addMatchIncident(currentState, incident) {
     events: [newEvent, ...currentEvents]
   };
 
-  // If this is a goal and team is provided, increment score atomically if requested
-  if (eventType === 'goal' && incident.team && incident.incrementScore !== false) {
+  // If this is a goal or scored penalty shot and team is provided, increment score atomically if requested
+  const isGoalOrScoredPenalty = (eventType === 'goal') || (eventType === 'penalty_shot' && incident.penaltyShotResult === 'scored');
+  if (isGoalOrScoredPenalty && incident.team && incident.incrementScore !== false) {
     const team = incident.team;
     const currentScore = updatedState[team]?.score || 0;
     const newScore = currentScore + 1;
@@ -887,8 +888,9 @@ export async function addMatchIncident(currentState, incident) {
     }
   }
 
-  // If this is a shot and team is provided, increment shots atomically if requested
-  if (eventType === 'shot' && incident.team && incident.incrementShots !== false) {
+  // If this is a shot or penalty shot and team is provided, increment shots atomically if requested
+  const isShotOrPenaltyShot = (eventType === 'shot') || (eventType === 'penalty_shot');
+  if (isShotOrPenaltyShot && incident.team && incident.incrementShots !== false) {
     const team = incident.team;
     const currentShots = updatedState[team]?.shots !== undefined ? updatedState[team].shots : 0;
     updatedState = {
@@ -942,8 +944,9 @@ export async function deleteMatchIncident(currentState, incidentId, decrementSco
     events: remainingEvents
   };
 
-  // If a goal is deleted and requested, rollback score
-  if (decrementScore && (target?.type === 'goal' || target?.scorer) && target?.team) {
+  // If a goal or scored penalty shot is deleted and requested, rollback score
+  const isGoalOrScoredPenalty = (target?.type === 'goal' || (target?.type === 'penalty_shot' && target?.penaltyShotResult === 'scored') || target?.scorer);
+  if (decrementScore && isGoalOrScoredPenalty && target?.team) {
     const currentScore = updatedState[target.team]?.score || 0;
     updatedState[target.team] = {
       ...updatedState[target.team],
@@ -951,8 +954,9 @@ export async function deleteMatchIncident(currentState, incidentId, decrementSco
     };
   }
 
-  // If a shot is deleted and requested, rollback shots
-  if (decrementShots && (target?.type === 'shot' || target?.shotPlayer) && target?.team) {
+  // If a shot or penalty shot is deleted and requested, rollback shots
+  const isShotOrPenaltyShot = (target?.type === 'shot' || target?.type === 'penalty_shot' || target?.shotPlayer);
+  if (decrementShots && isShotOrPenaltyShot && target?.team) {
     const currentShots = updatedState[target.team]?.shots || 0;
     updatedState[target.team] = {
       ...updatedState[target.team],
@@ -1192,7 +1196,7 @@ export function calculateLeagueStandings(matches = []) {
       name: t.name,
       shortCode: t.shortCode || t.id.slice(0, 3).toUpperCase(),
       crestSvg: t.crestSvg,
-      city: t.city || 'NHL',
+      city: t.city || 'League',
       stadium: t.stadium || 'Arena',
       gp: 0,
       w: 0,

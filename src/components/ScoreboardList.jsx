@@ -107,7 +107,7 @@ export function ScoreboardList({
                   {activeNavTab === 'finished' && `Concluded Match Results (${displayedMatches.length})`}
                 </span>
                 <span className="text-[11px] text-gray-400 font-semibold">
-                  Official NHL Live Timetable
+                  Official Live Timetable
                 </span>
               </div>
 

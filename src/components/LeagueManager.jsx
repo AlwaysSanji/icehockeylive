@@ -568,7 +568,7 @@ export function LeagueManager({
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5 truncate">{team.stadium || 'Home Arena'}</p>
-                    <p className="text-[11px] text-gray-500 font-medium">{team.city || 'NHL League'}</p>
+                    <p className="text-[11px] text-gray-500 font-medium">{team.city || 'League'}</p>
                   </div>
                 </div>
 

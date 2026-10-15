@@ -11,7 +11,7 @@ const DEFAULT_USERS = [
     id: 'user-admin',
     name: 'Scorekeeper (Admin)',
     username: 'admin',
-    email: 'admin@nhl.com',
+    email: 'admin@icehockey.com',
     password: 'password',
     role: 'admin',
     canControlRemote: true,
@@ -20,7 +20,7 @@ const DEFAULT_USERS = [
     id: 'user-operator',
     name: 'Game Operator',
     username: 'operator',
-    email: 'operator@nhl.com',
+    email: 'operator@icehockey.com',
     password: 'password',
     role: 'operator',
     canControlRemote: true,
@@ -29,7 +29,7 @@ const DEFAULT_USERS = [
     id: 'user-1',
     name: 'Spectator User',
     username: 'user',
-    email: 'user@nhl.com',
+    email: 'user@icehockey.com',
     password: 'password',
     role: 'viewer',
     canControlRemote: false,
@@ -300,7 +300,7 @@ export function canUserAccessRemote(user) {
   const username = (user.username || '').toLowerCase();
   const email = (user.email || '').toLowerCase();
   if (username === 'admin' || username === 'operator') return true;
-  if (email === 'admin@nhl.com' || email === 'operator@nhl.com') return true;
+  if (email === 'admin@icehockey.com' || email === 'admin@nhl.com' || email === 'operator@icehockey.com' || email === 'operator@nhl.com') return true;
   return false;
 }
 
@@ -309,7 +309,7 @@ export function isUserAdmin(user) {
   if (user.role === 'admin') return true;
   const username = (user.username || '').toLowerCase();
   const email = (user.email || '').toLowerCase();
-  return username === 'admin' || email === 'admin@nhl.com';
+  return username === 'admin' || email === 'admin@icehockey.com' || email === 'admin@nhl.com';
 }
 
 export function getAllRegisteredUsers() {
@@ -359,8 +359,8 @@ function localRegisterUser({ name, username, email, password }) {
     throw new Error('An account with this email or username already exists.');
   }
 
-  const isInitialAdmin = cleanUsername === 'admin' || cleanEmail === 'admin@nhl.com';
-  const isInitialOperator = cleanUsername === 'operator' || cleanEmail === 'operator@nhl.com';
+  const isInitialAdmin = cleanUsername === 'admin' || cleanEmail === 'admin@icehockey.com' || cleanEmail === 'admin@nhl.com';
+  const isInitialOperator = cleanUsername === 'operator' || cleanEmail === 'operator@icehockey.com' || cleanEmail === 'operator@nhl.com';
   const role = isInitialAdmin ? 'admin' : (isInitialOperator ? 'operator' : 'viewer');
   const canControlRemote = isInitialAdmin || isInitialOperator;
 
@@ -402,7 +402,7 @@ function localLoginUser(identifier, password) {
         id: `user-${cleanIdentifier}`,
         name: cleanIdentifier === 'admin' ? 'Scorekeeper (Admin)' : (cleanIdentifier === 'operator' ? 'Game Operator' : 'Spectator User'),
         username: cleanIdentifier,
-        email: `${cleanIdentifier}@nhl.com`,
+        email: `${cleanIdentifier}@icehockey.com`,
         role,
         canControlRemote: role === 'admin' || role === 'operator'
       };

@@ -87,10 +87,9 @@ export function MatchDetailView({
     return [];
   }, [matchState.away?.lineup, isAwayLineupDeclared, awayTeamId, awayName]);
 
-  // Goal Events for this specific match
   const matchEvents = useMemo(() => {
     if (matchState?.events && matchState.events.length > 0) {
-      return matchState.events.filter(e => e.type === 'goal' || e.scorer);
+      return matchState.events.filter(e => e.type === 'goal' || e.type === 'penalty_shot' || e.scorer);
     }
 
     // For live matches or when events are an explicit array, strictly display what admin has set
@@ -345,10 +344,29 @@ export function MatchDetailView({
                             {evt.period}
                           </span>
                           <div className="flex-1 text-sm font-medium text-gray-800">
-                            <span className="font-bold">{evt.scorer}</span>
+                            <span className="font-bold">{evt.scorer || evt.player}</span>
                             {evt.assist && <span className="text-gray-500 text-xs ml-2">({evt.assist})</span>}
+                            {evt.type === 'penalty_shot' && (
+                              <span className="text-gray-500 text-xs ml-2">
+                                {evt.penaltyShotResult === 'scored'
+                                  ? (evt.goalie ? `vs ${evt.goalie}` : 'Penalty Shot Scored')
+                                  : (evt.missReason || 'Missed')}
+                              </span>
+                            )}
                           </div>
-                          <span className="text-xs font-semibold text-blue-600">Goal</span>
+                          <span className={`text-xs font-semibold ${
+                            evt.type === 'penalty_shot'
+                              ? evt.penaltyShotResult === 'scored'
+                                ? 'text-emerald-600'
+                                : 'text-rose-600'
+                              : 'text-blue-600'
+                          }`}>
+                            {evt.type === 'penalty_shot'
+                              ? evt.penaltyShotResult === 'scored'
+                                ? 'Penalty Shot (Goal)'
+                                : 'Penalty Shot (Missed)'
+                              : 'Goal'}
+                          </span>
                         </div>
                       ))
                     ) : (
@@ -480,7 +498,7 @@ export function MatchDetailView({
             {activeTab === 'Table' && (
               <div>
                 <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
-                  NHL Standings
+                  League Standings
                 </h4>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
@@ -626,7 +644,7 @@ export function MatchDetailView({
               <div>
                 <div className="text-xs text-gray-400 font-normal">Competition</div>
                 <div className="text-sm font-semibold text-gray-800">
-                  {matchState.league || 'NHL'} • {matchState.country || 'USA'}
+                  {matchState.league || 'League'} • {matchState.country || 'USA'}
                 </div>
               </div>
             </div>

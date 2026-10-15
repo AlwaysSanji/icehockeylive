@@ -22,7 +22,7 @@ export function BoxScoreTable({ matchState }) {
 
   // Compute goals by period
   const boxScore = useMemo(() => {
-    const goals = events.filter(e => e.type === 'goal' || e.scorer);
+    const goals = events.filter(e => e.type === 'goal' || (e.type === 'penalty_shot' && e.penaltyShotResult === 'scored') || (e.scorer && e.type !== 'penalty_shot'));
 
     let h1 = 0, h2 = 0, h3 = 0, hOT = 0;
     let a1 = 0, a2 = 0, a3 = 0, aOT = 0;
@@ -75,7 +75,7 @@ export function BoxScoreTable({ matchState }) {
           <h4 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-gray-900">
             Period-by-Period Box Score
           </h4>
-          <p className="text-[11px] text-gray-400">Official NHL scoring summary and shots on goal</p>
+          <p className="text-[11px] text-gray-400">Official scoring summary and shots on goal</p>
         </div>
         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-gray-100 text-gray-600 font-mono">
           {matchState.period === 'FT' ? 'Final Score' : `Period ${matchState.period || '1'}`}

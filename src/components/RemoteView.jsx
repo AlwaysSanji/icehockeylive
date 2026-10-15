@@ -72,7 +72,7 @@ export function RemoteView({
             </button>
           </div>
           <p className="text-[11px] text-gray-400 mt-5">
-            Contact your game administrator (<span className="text-blue-600 font-medium">admin@nhl.com</span>) to request live operator privileges.
+            Contact your game administrator (<span className="text-blue-600 font-medium">admin@icehockey.com</span>) to request live operator privileges.
           </p>
         </div>
       </div>
@@ -230,7 +230,10 @@ export function RemoteView({
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
   const [editingIncidentId, setEditingIncidentId] = useState(null);
   const [incidentTeam, setIncidentTeam] = useState('home');
-  const [incidentType, setIncidentType] = useState('goal'); // 'goal', 'shot', 'penalty', 'timeout'
+  const [incidentType, setIncidentType] = useState('goal'); // 'goal', 'shot', 'penalty_shot', 'penalty', 'timeout'
+  const [incidentPenaltyShotResult, setIncidentPenaltyShotResult] = useState('scored'); // 'scored', 'missed'
+  const [incidentGoalie, setIncidentGoalie] = useState('');
+  const [incidentMissReason, setIncidentMissReason] = useState('Saved by Goalie');
   const [incidentPlayer, setIncidentPlayer] = useState('');
   const [incidentAssist, setIncidentAssist] = useState('');
   const [incidentPenaltyReason, setIncidentPenaltyReason] = useState('Tripping');
@@ -485,6 +488,9 @@ export function RemoteView({
       setIncidentPenaltyReason(existingIncident.penaltyReason || 'Tripping');
       setIncidentPenaltyMins(existingIncident.penaltyMin || 2);
       setIncidentGoalType(existingIncident.goalType || 'EV');
+      setIncidentPenaltyShotResult(existingIncident.penaltyShotResult || 'scored');
+      setIncidentGoalie(existingIncident.goalie || '');
+      setIncidentMissReason(existingIncident.missReason || 'Saved by Goalie');
     } else {
       setEditingIncidentId(null);
       setIncidentTeam(team);
@@ -499,6 +505,9 @@ export function RemoteView({
       setIncidentPenaltyReason('Tripping');
       setIncidentPenaltyMins(2);
       setIncidentGoalType('EV');
+      setIncidentPenaltyShotResult('scored');
+      setIncidentGoalie('');
+      setIncidentMissReason('Saved by Goalie');
     }
     setIsIncidentModalOpen(true);
   };
@@ -565,6 +574,16 @@ export function RemoteView({
             shotPlayer: incidentPlayer || `${teamName} Shooter`,
             player: incidentPlayer || `${teamName} Shooter`,
             text: `Shot on Goal by ${incidentPlayer} (${teamName})`
+          } : incidentType === 'penalty_shot' ? {
+            penaltyShotResult: incidentPenaltyShotResult,
+            player: incidentPlayer || `${teamName} Shooter`,
+            scorer: incidentPenaltyShotResult === 'scored' ? (incidentPlayer || `${teamName} Shooter`) : null,
+            shotPlayer: incidentPlayer || `${teamName} Shooter`,
+            goalie: incidentGoalie || '',
+            missReason: incidentPenaltyShotResult !== 'scored' ? incidentMissReason : null,
+            text: incidentPenaltyShotResult === 'scored'
+              ? `Penalty Shot Goal! ${incidentPlayer || `${teamName} Shooter`} (${teamName})`
+              : `Penalty Shot Missed (${incidentMissReason || 'Saved'}) - ${incidentPlayer || `${teamName} Shooter`} (${teamName})`
           } : incidentType === 'penalty' ? {
             penaltyPlayer: incidentPlayer || `${teamName} Player`,
             penaltyMin: incidentPenaltyMins,
@@ -605,6 +624,27 @@ export function RemoteView({
               player: incidentPlayer || `${teamName} Shooter`,
               incrementShots: true,
               text: `Shot on Goal by ${incidentPlayer || `${teamName} Shooter`} (${teamName})`
+            });
+          }
+        } else if (incidentType === 'penalty_shot') {
+          const isScored = incidentPenaltyShotResult === 'scored';
+          if (scoreboard.addIncident) {
+            await scoreboard.addIncident({
+              time: timeLabel,
+              period: periodLabel,
+              team: incidentTeam,
+              type: 'penalty_shot',
+              penaltyShotResult: incidentPenaltyShotResult, // 'scored' | 'missed'
+              player: incidentPlayer || `${teamName} Shooter`,
+              scorer: isScored ? (incidentPlayer || `${teamName} Shooter`) : null,
+              shotPlayer: incidentPlayer || `${teamName} Shooter`,
+              goalie: incidentGoalie || '',
+              missReason: !isScored ? incidentMissReason : null,
+              incrementScore: isScored,
+              incrementShots: true,
+              text: isScored
+                ? `Penalty Shot Goal! ${incidentPlayer || `${teamName} Shooter`} (${teamName})`
+                : `Penalty Shot Missed (${incidentMissReason || 'Saved'}) - ${incidentPlayer || `${teamName} Shooter`} (${teamName})`
             });
           }
         } else if (incidentType === 'penalty') {
@@ -954,6 +994,16 @@ export function RemoteView({
                 </div>
               </div>
             )}
+
+            {/* Quick Penalty Shot Button */}
+            <button
+              type="button"
+              onClick={() => openIncidentLogger('home', 'penalty_shot')}
+              className="w-full py-2 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-purple-200/70"
+              title="Record penalty shot (Score or Miss)"
+            >
+              <span>+ Penalty Shot (Score or Miss)</span>
+            </button>
           </div>
         </div>
 
@@ -1050,6 +1100,16 @@ export function RemoteView({
                 </div>
               </div>
             )}
+
+            {/* Quick Penalty Shot Button */}
+            <button
+              type="button"
+              onClick={() => openIncidentLogger('away', 'penalty_shot')}
+              className="w-full py-2 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-purple-200/70"
+              title="Record penalty shot (Score or Miss)"
+            >
+              <span>+ Penalty Shot (Score or Miss)</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1087,6 +1147,14 @@ export function RemoteView({
             className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
           >
             <span>+ Log Shot Maker</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openIncidentLogger('home', 'penalty_shot')}
+            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            title="Record penalty shot attempt (Score or Miss)"
+          >
+            <span>+ Log Penalty Shot</span>
           </button>
           <button
             type="button"
@@ -1204,6 +1272,9 @@ export function RemoteView({
             const isGoal = evtType === 'goal';
             const isPenalty = evtType === 'penalty';
             const isShot = evtType === 'shot';
+            const isPenaltyShot = evtType === 'penalty_shot';
+            const isPenaltyScored = isPenaltyShot && evt.penaltyShotResult === 'scored';
+            const isPenaltyMissed = isPenaltyShot && evt.penaltyShotResult !== 'scored';
             const isHome = evt.team === 'home';
             const evtTeamName = isHome ? homeName : awayName;
 
@@ -1223,23 +1294,71 @@ export function RemoteView({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={`text-[11px] font-black uppercase tracking-wider ${
-                        isGoal ? (isHome ? 'text-blue-600' : 'text-amber-600') : isShot ? 'text-sky-600' : isPenalty ? 'text-gray-800' : 'text-purple-600'
+                        isPenaltyScored
+                          ? 'text-emerald-600'
+                          : isPenaltyMissed
+                            ? 'text-rose-600'
+                            : isGoal
+                              ? (isHome ? 'text-blue-600' : 'text-amber-600')
+                              : isShot
+                                ? 'text-sky-600'
+                                : isPenalty
+                                  ? 'text-gray-800'
+                                  : 'text-purple-600'
                       }`}>
-                        {isGoal ? 'Goal' : isShot ? 'Shot on Goal' : isPenalty ? `${evt.penaltyMin || 2} Min Penalty` : 'Timeout'}
+                        {isPenaltyScored
+                          ? 'Penalty Shot Goal'
+                          : isPenaltyMissed
+                            ? 'Penalty Shot Missed'
+                            : isGoal
+                              ? 'Goal'
+                              : isShot
+                                ? 'Shot on Goal'
+                                : isPenalty
+                                  ? `${evt.penaltyMin || 2} Min Penalty`
+                                  : 'Timeout'}
                       </span>
                       <span className="text-gray-300">•</span>
                       <span className="text-xs font-bold text-gray-900 truncate">
-                        {isGoal ? (evt.scorer || 'Goal Scored') : isShot ? (evt.shotPlayer || evt.player || 'Shot on Goal') : isPenalty ? (evt.penaltyPlayer || evt.player || 'Penalized Player') : evtTeamName}
+                        {isPenaltyShot
+                          ? (evt.player || evt.scorer || evt.shotPlayer || 'Penalty Shooter')
+                          : isGoal
+                            ? (evt.scorer || 'Goal Scored')
+                            : isShot
+                              ? (evt.shotPlayer || evt.player || 'Shot on Goal')
+                              : isPenalty
+                                ? (evt.penaltyPlayer || evt.player || 'Penalized Player')
+                                : evtTeamName}
                       </span>
-                      {evt.score && (
+                      {isPenaltyScored && evt.score ? (
+                        <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                          {evt.score}
+                        </span>
+                      ) : isPenaltyMissed ? (
+                        <span className="font-mono text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                          No Goal
+                        </span>
+                      ) : evt.score ? (
                         <span className="font-mono text-xs font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
                           {evt.score}
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
                     <div className="text-xs text-gray-500 mt-0.5 truncate flex items-center gap-2">
                       <span className="font-medium text-gray-700">{evtTeamName}</span>
+                      {isPenaltyScored && (
+                        <>
+                          <span>•</span>
+                          <span>Penalty Shot Scored {evt.goalie ? `against ${evt.goalie}` : ''}</span>
+                        </>
+                      )}
+                      {isPenaltyMissed && (
+                        <>
+                          <span>•</span>
+                          <span><strong className="text-rose-700">{evt.missReason || 'Saved by Goalie'}</strong> {evt.goalie ? `(${evt.goalie})` : ''} • No Goal</span>
+                        </>
+                      )}
                       {isGoal && evt.assist && (
                         <>
                           <span>•</span>
@@ -1274,7 +1393,7 @@ export function RemoteView({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDeleteIncident(evt.id, isGoal, isShot, evt.team)}
+                    onClick={() => handleDeleteIncident(evt.id, isGoal || isPenaltyScored, isShot || isPenaltyShot, evt.team)}
                     className="px-2.5 py-1 text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                     title="Delete this incident"
                   >
@@ -2956,6 +3075,7 @@ export function RemoteView({
                   >
                     <option value="goal">Goal {editingIncidentId ? '' : '(+1 Score)'}</option>
                     <option value="shot">Shot on Goal {editingIncidentId ? '' : '(+1 SOG)'}</option>
+                    <option value="penalty_shot">Penalty Shot / Shootout (Score or Miss)</option>
                     <option value="penalty">Penalty (PIM)</option>
                     <option value="timeout">30s Official Timeout</option>
                   </select>
@@ -3016,6 +3136,8 @@ export function RemoteView({
                 <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
                   {incidentType === 'goal'
                     ? 'Goal Scorer'
+                    : incidentType === 'penalty_shot'
+                    ? 'Penalty Shooter'
                     : incidentType === 'shot'
                     ? 'Shot Maker (Player taking shot)'
                     : incidentType === 'penalty'
@@ -3047,6 +3169,8 @@ export function RemoteView({
                   placeholder={
                     incidentType === 'goal'
                       ? 'Goal Scorer Name (e.g. Connor Bedard)'
+                      : incidentType === 'penalty_shot'
+                      ? 'Shooter Name (e.g. Connor Bedard)'
                       : incidentType === 'shot'
                       ? 'Shot Maker Name (e.g. Connor Bedard)'
                       : 'Player Name'
@@ -3055,6 +3179,73 @@ export function RemoteView({
                   required
                 />
               </div>
+
+              {/* Penalty Shot Options (Outcome, Goalie, Miss Reason) */}
+              {incidentType === 'penalty_shot' && (
+                <div className="space-y-2.5 p-3.5 bg-purple-50/80 rounded-2xl border border-purple-200/80">
+                  <div>
+                    <label className="block text-[11px] font-black text-purple-950 uppercase tracking-wider mb-1.5">
+                      Penalty Shot Outcome
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIncidentPenaltyShotResult('scored')}
+                        className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          incidentPenaltyShotResult === 'scored'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-white text-gray-700 border border-gray-200 hover:bg-emerald-50'
+                        }`}
+                      >
+                        <span>✓ Scored (Goal +1)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIncidentPenaltyShotResult('missed')}
+                        className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          incidentPenaltyShotResult === 'missed'
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'bg-white text-gray-700 border border-gray-200 hover:bg-rose-50'
+                        }`}
+                      >
+                        <span>✗ Missed / Saved (0 Goals)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {incidentPenaltyShotResult === 'missed' && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
+                        Miss Reason
+                      </label>
+                      <select
+                        value={incidentMissReason}
+                        onChange={(e) => setIncidentMissReason(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-purple-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
+                      >
+                        <option value="Saved by Goalie">Saved by Goalie</option>
+                        <option value="Missed Net (Wide / High)">Missed Net (Wide / High)</option>
+                        <option value="Hit Post / Crossbar">Hit Post / Crossbar</option>
+                        <option value="Puck Poked Away">Puck Poked Away</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
+                      Defending Goalie (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={incidentGoalie}
+                      onChange={(e) => setIncidentGoalie(e.target.value)}
+                      placeholder="e.g. Tristan Jarry or Igor Shesterkin"
+                      className="w-full px-3 py-2 bg-white border border-purple-200 rounded-xl text-xs outline-none"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Assist & Goal Type if Goal */}
               {incidentType === 'goal' && (

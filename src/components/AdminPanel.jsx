@@ -157,7 +157,10 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
   };
 
   // 4. Timeline Incident State
-  const [timelineType, setTimelineType] = useState('goal'); // 'goal', 'penalty', 'timeout'
+  const [timelineType, setTimelineType] = useState('goal'); // 'goal', 'penalty_shot', 'penalty', 'timeout'
+  const [timelinePenaltyShotResult, setTimelinePenaltyShotResult] = useState('scored'); // 'scored', 'missed'
+  const [timelineGoalie, setTimelineGoalie] = useState('');
+  const [timelineMissReason, setTimelineMissReason] = useState('Saved by Goalie');
   const [timelineTeam, setTimelineTeam] = useState('home');
   const [timelinePlayer, setTimelinePlayer] = useState('');
   const [timelineAssist, setTimelineAssist] = useState('');
@@ -197,6 +200,26 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
         text: `Goal! ${teamName} (${newH} - ${newA})`
       });
       showNotification(`Goal recorded on live timeline for ${teamName}`);
+    } else if (timelineType === 'penalty_shot') {
+      const isScored = timelinePenaltyShotResult === 'scored';
+      await scoreboard.addIncident({
+        time: timelineClock || '10:00',
+        period: periodLabel,
+        team: timelineTeam,
+        type: 'penalty_shot',
+        penaltyShotResult: timelinePenaltyShotResult,
+        player: timelinePlayer || `${teamName} Shooter`,
+        scorer: isScored ? (timelinePlayer || `${teamName} Shooter`) : null,
+        shotPlayer: timelinePlayer || `${teamName} Shooter`,
+        goalie: timelineGoalie || '',
+        missReason: !isScored ? timelineMissReason : null,
+        incrementScore: isScored,
+        incrementShots: true,
+        text: isScored
+          ? `Penalty Shot Goal! ${timelinePlayer || `${teamName} Shooter`} (${teamName})`
+          : `Penalty Shot Missed (${timelineMissReason || 'Saved'}) - ${timelinePlayer || `${teamName} Shooter`} (${teamName})`
+      });
+      showNotification(`Penalty shot (${isScored ? 'Scored' : 'Missed'}) recorded for ${teamName}`);
     } else if (timelineType === 'penalty') {
       await scoreboard.addIncident({
         time: timelineClock || '10:00',
@@ -765,6 +788,15 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
                 </button>
                 <button
                   type="button"
+                  onClick={() => setTimelineType('penalty_shot')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    timelineType === 'penalty_shot' ? 'bg-purple-600 text-white shadow-xs' : 'bg-white text-gray-700 border border-gray-200'
+                  }`}
+                >
+                  Penalty Shot
+                </button>
+                <button
+                  type="button"
                   onClick={() => setTimelineType('penalty')}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     timelineType === 'penalty' ? 'bg-gray-900 text-white shadow-xs' : 'bg-white text-gray-700 border border-gray-200'
@@ -776,7 +808,7 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
                   type="button"
                   onClick={() => setTimelineType('timeout')}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    timelineType === 'timeout' ? 'bg-purple-600 text-white shadow-xs' : 'bg-white text-gray-700 border border-gray-200'
+                    timelineType === 'timeout' ? 'bg-gray-700 text-white shadow-xs' : 'bg-white text-gray-700 border border-gray-200'
                   }`}
                 >
                   Timeout
@@ -880,6 +912,67 @@ export function AdminPanel({ matchState, scoreboard, remainingSeconds, isRunning
                       placeholder="e.g. Bedard C. or Kane P."
                       className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs outline-none mt-7 sm:mt-0"
                     />
+                  </div>
+                ) : timelineType === 'penalty_shot' ? (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Outcome
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setTimelinePenaltyShotResult('scored')}
+                          className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            timelinePenaltyShotResult === 'scored'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-white text-gray-700 border border-gray-200 hover:bg-emerald-50'
+                          }`}
+                        >
+                          ✓ Scored (Goal)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTimelinePenaltyShotResult('missed')}
+                          className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            timelinePenaltyShotResult === 'missed'
+                              ? 'bg-rose-600 text-white shadow-xs'
+                              : 'bg-white text-gray-700 border border-gray-200 hover:bg-rose-50'
+                          }`}
+                        >
+                          ✗ Missed / Saved
+                        </button>
+                      </div>
+                    </div>
+                    {timelinePenaltyShotResult === 'missed' ? (
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">
+                          Miss Reason
+                        </label>
+                        <select
+                          value={timelineMissReason}
+                          onChange={(e) => setTimelineMissReason(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
+                        >
+                          <option value="Saved by Goalie">Saved by Goalie</option>
+                          <option value="Missed Net (Wide / High)">Missed Net (Wide / High)</option>
+                          <option value="Hit Post / Crossbar">Hit Post / Crossbar</option>
+                        </select>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">
+                          Defending Goalie (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={timelineGoalie}
+                          onChange={(e) => setTimelineGoalie(e.target.value)}
+                          placeholder="e.g. Tristan Jarry"
+                          className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs outline-none"
+                        />
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">

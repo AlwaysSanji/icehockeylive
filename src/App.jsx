@@ -247,7 +247,7 @@ export default function App() {
       <footer className="border-t border-gray-200/60 bg-white py-6 mt-12 text-center text-xs text-gray-500">
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 font-medium">
-            <span>🏒 NHL Ice Hockey</span>
+            <span>🏒 Ice Hockey</span>
             <span className="text-gray-300">•</span>
             <span>Real-Time Arena Scoreboard</span>
           </div>

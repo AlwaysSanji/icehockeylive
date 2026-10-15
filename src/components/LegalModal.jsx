@@ -60,7 +60,7 @@ export function LegalModal({ initialTab = 'privacy', onClose }) {
               <section>
                 <h4 className="font-bold text-gray-900 text-sm mb-1">1. Information We Collect</h4>
                 <p>
-                  When you create an account or sign in to our NHL Live Scoreboard system, we collect your name, email address, and username. We also log session identifiers, cookies, and network IP addresses for security, rate-limiting, and authentication purposes.
+                  When you create an account or sign in to our Live Scoreboard system, we collect your name, email address, and username. We also log session identifiers, cookies, and network IP addresses for security, rate-limiting, and authentication purposes.
                 </p>
               </section>
 
@@ -97,7 +97,7 @@ export function LegalModal({ initialTab = 'privacy', onClose }) {
               <section>
                 <h4 className="font-bold text-gray-900 text-sm mb-1">1. Acceptance of Terms</h4>
                 <p>
-                  By accessing or using the NHL Live Scoreboard & Operator Remote, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the application.
+                  By accessing or using the Live Scoreboard & Operator Remote, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the application.
                 </p>
               </section>
 
@@ -118,7 +118,7 @@ export function LegalModal({ initialTab = 'privacy', onClose }) {
               <section>
                 <h4 className="font-bold text-gray-900 text-sm mb-1">4. Intellectual Property & Trademarks</h4>
                 <p>
-                  NHL team names, logos, colors, and associated stadium brands are trademarks of their respective clubs and the National Hockey League. This application is intended for live game tracking and scorekeeping.
+                  Team names, logos, colors, and associated stadium brands are trademarks of their respective clubs. This application is intended for live game tracking and scorekeeping.
                 </p>
               </section>
 

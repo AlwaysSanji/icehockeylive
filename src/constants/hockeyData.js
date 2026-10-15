@@ -161,7 +161,7 @@ export const DEFAULT_MATCH_STATE = {
   date: 'Wed, Oct 14, 2026',
   dateTime: 'Wed, Oct 14, 2026 05:30',
   referee: 'Furlatt E.',
-  league: 'NHL',
+  league: 'League',
   country: 'USA',
   events: [
     { id: 1, type: 'goal', time: '05:12', period: 'P1', team: 'home', scorer: 'C. Bedard', assist: 'N. Foligno', text: 'Goal! Chicago Blackhawks (1 - 0)', score: '1 - 0' },
@@ -189,7 +189,7 @@ export const DEFAULT_MATCHES_LIST = [
     date: 'Wed, Oct 14, 2026',
     dateTime: 'Wed, Oct 14, 2026 05:00',
     referee: 'Roach J.',
-    league: 'NHL',
+    league: 'League',
     country: 'USA',
     status: 'FT',
     statusBadge: 'FT'
@@ -205,7 +205,7 @@ export const DEFAULT_MATCHES_LIST = [
     date: 'Wed, Oct 14, 2026',
     dateTime: 'Wed, Oct 14, 2026 06:30',
     referee: 'McCauley W.',
-    league: 'NHL',
+    league: 'League',
     country: 'USA',
     status: 'FT',
     statusBadge: 'FT'
@@ -221,7 +221,7 @@ export const DEFAULT_MATCHES_LIST = [
     date: 'Wed, Oct 14, 2026',
     dateTime: 'Wed, Oct 14, 2026 07:00',
     referee: 'Sutherland K.',
-    league: 'NHL',
+    league: 'League',
     country: 'USA',
     status: 'FT',
     statusBadge: 'FT'
@@ -237,7 +237,7 @@ export const DEFAULT_MATCHES_LIST = [
     date: 'Wed, Oct 14, 2026',
     dateTime: 'Wed, Oct 14, 2026 08:00',
     referee: 'Lee C.',
-    league: 'NHL',
+    league: 'League',
     country: 'USA',
     status: 'FT',
     statusBadge: 'FT'
@@ -253,7 +253,7 @@ export const DEFAULT_MATCHES_LIST = [
     date: 'Thu, Oct 15, 2026',
     dateTime: 'Thu, Oct 15, 2026 19:00',
     referee: 'Rank G.',
-    league: 'NHL',
+    league: 'League',
     country: 'USA',
     status: 'Upcoming',
     statusBadge: '19:00'
@@ -269,7 +269,7 @@ export const DEFAULT_MATCHES_LIST = [
     date: 'Thu, Oct 15, 2026',
     dateTime: 'Thu, Oct 15, 2026 19:30',
     referee: 'St. Laurent F.',
-    league: 'NHL',
+    league: 'League',
     country: 'USA',
     status: 'Upcoming',
     statusBadge: '19:30'
@@ -280,7 +280,7 @@ export const DEFAULT_MATCHES_LIST = [
 export const NHL_LEAGUE_CARDS_TODAY = [
   {
     country: 'USA',
-    league: 'NHL',
+    league: 'League',
     fixtures: [
       {
         id: 'live-match-1',
@@ -312,7 +312,7 @@ export const NHL_LEAGUE_CARDS_TODAY = [
   },
   {
     country: 'USA',
-    league: 'NHL',
+    league: 'League',
     fixtures: [
       {
         id: 'match-stars-avs',
@@ -361,7 +361,7 @@ export const NHL_LEAGUE_CARDS_TODAY = [
 export const NHL_LEAGUE_CARDS_TOMORROW = [
   {
     country: 'USA',
-    league: 'NHL',
+    league: 'League',
     fixtures: [
       {
         id: 'match-oilers-flames',

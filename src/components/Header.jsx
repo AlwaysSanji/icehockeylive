@@ -36,12 +36,9 @@ export function Header({
               <span className="font-extrabold text-gray-900 tracking-tight text-lg">
                 Ice Hockey Live
               </span>
-              <span className="text-xs text-blue-600 font-bold uppercase tracking-wider">
-                NHL
-              </span>
             </div>
             <p className="text-xs text-gray-500 font-medium hidden sm:block">
-              {isLoggedIn ? `Logged in as ${currentUser.name}` : 'Official NHL Live Scoreboard & Fixtures'}
+              {isLoggedIn ? `Logged in as ${currentUser.name}` : 'Official Live Scoreboard & Fixtures'}
             </p>
           </div>
         </div>

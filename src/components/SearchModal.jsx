@@ -196,7 +196,7 @@ export function SearchModal({
                         {team.name}
                       </div>
                       <div className="text-[10px] text-gray-400 truncate">
-                        {team.stadium || team.city || 'NHL Team'}
+                        {team.stadium || team.city || 'Team'}
                       </div>
                     </div>
                     <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 font-mono text-[10px] font-bold rounded-md">

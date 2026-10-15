@@ -10,12 +10,13 @@ export function PenaltyTracker({
 
   const events = Array.isArray(matchState.events) ? matchState.events : [];
   const penalties = events.filter(e => e.type === 'penalty');
+  const penaltyShots = events.filter(e => e.type === 'penalty_shot');
   const powerPlay = matchState.powerPlay; // 'home', 'away', or null
 
   const homeName = matchState.home?.name || 'Home';
   const awayName = matchState.away?.name || 'Away';
 
-  if (!powerPlay && penalties.length === 0) return null;
+  if (!powerPlay && penalties.length === 0 && penaltyShots.length === 0) return null;
 
   return (
     <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300/60 rounded-3xl p-4 sm:p-5 shadow-xs mb-6">
@@ -27,7 +28,7 @@ export function PenaltyTracker({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-amber-950 text-xs sm:text-sm uppercase tracking-wide">
-                Special Teams / Penalty Tracker
+                Special Teams & Penalty Tracker
               </span>
               {powerPlay && (
                 <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white font-black text-[10px] uppercase tracking-wider animate-pulse">
@@ -36,7 +37,7 @@ export function PenaltyTracker({
               )}
             </div>
             <p className="text-[11px] text-amber-800/80">
-              {powerPlay ? `Man advantage in progress (5 on 4)` : `Recorded match penalties`}
+              {powerPlay ? `Man advantage in progress (5 on 4)` : `Recorded match penalties & penalty shot attempts`}
             </p>
           </div>
         </div>
@@ -51,6 +52,63 @@ export function PenaltyTracker({
           </button>
         )}
       </div>
+
+      {/* Recorded Penalty Shots (Score or Miss) */}
+      {penaltyShots.length > 0 && (
+        <div className="space-y-2 mb-3">
+          <div className="text-[11px] font-bold text-amber-950 uppercase tracking-wide px-1">
+            Penalty Shot Attempts ({penaltyShots.length})
+          </div>
+          {penaltyShots.map((ps, idx) => {
+            const isHome = ps.team === 'home' || ps.team === homeName;
+            const shootingTeamName = isHome ? homeName : awayName;
+            const isScored = ps.penaltyShotResult === 'scored';
+
+            return (
+              <div
+                key={ps.id || idx}
+                className={`bg-white/95 backdrop-blur-xs rounded-2xl p-3 border flex items-center justify-between gap-3 text-xs ${
+                  isScored ? 'border-emerald-300/80 shadow-2xs' : 'border-rose-200/80'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isScored ? 'bg-emerald-500 ring-2 ring-emerald-200' : 'bg-rose-500 ring-2 ring-rose-200'}`} />
+                  <div className="min-w-0">
+                    <div className="font-bold text-gray-900 truncate flex items-center gap-1.5">
+                      <span className="text-gray-500 font-semibold">{shootingTeamName}: </span>
+                      <strong className="text-gray-950 font-black">{ps.player || ps.scorer || 'Shooter'}</strong>
+                      {ps.goalie && <span className="text-gray-400 font-normal">vs {ps.goalie}</span>}
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-0.5">
+                      Period {ps.period || '1'} • Clock {ps.time || '10:00'} {ps.missReason ? `• ${ps.missReason}` : ''}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`px-2.5 py-1 rounded-lg font-bold text-xs uppercase tracking-wider ${
+                    isScored 
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                      : 'bg-rose-100 text-rose-800 border border-rose-200'
+                  }`}>
+                    {isScored ? 'Goal Scored' : 'Missed / Saved'}
+                  </span>
+                  {isOperator && onCancelPenalty && (
+                    <button
+                      type="button"
+                      onClick={() => onCancelPenalty(ps.id)}
+                      className="p-1 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                      title="Delete penalty shot incident"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Penalties List */}
       <div className="space-y-2">

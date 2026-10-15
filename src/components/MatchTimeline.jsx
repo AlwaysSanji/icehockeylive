@@ -131,9 +131,9 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
   const filteredEvents = useMemo(() => {
     return allEvents.filter(e => {
       const type = getNormalizedType(e);
-      if (activeFilter === 'goals') return type === 'goal';
-      if (activeFilter === 'penalties') return type === 'penalty';
-      if (activeFilter === 'shots') return type === 'shot';
+      if (activeFilter === 'goals') return type === 'goal' || (type === 'penalty_shot' && e.penaltyShotResult === 'scored');
+      if (activeFilter === 'penalties') return type === 'penalty' || type === 'penalty_shot';
+      if (activeFilter === 'shots') return type === 'shot' || type === 'penalty_shot';
       return true;
     });
   }, [allEvents, activeFilter]);
@@ -286,6 +286,9 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
             const type = getNormalizedType(evt);
             const isGoal = type === 'goal';
             const isShot = type === 'shot';
+            const isPenaltyShot = type === 'penalty_shot';
+            const isPenaltyScored = isPenaltyShot && evt.penaltyShotResult === 'scored';
+            const isPenaltyMissed = isPenaltyShot && evt.penaltyShotResult !== 'scored';
             const isHome = evt.team === 'home';
             const isHovered = hoveredEvent?.id === evt.id;
 
@@ -299,31 +302,46 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
               >
                 {/* Pin Circle */}
                 <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-md transition-transform group-hover:scale-125 ${
-                    isGoal
-                      ? isHome
-                        ? 'bg-blue-600 text-white ring-2 ring-blue-300'
-                        : 'bg-amber-500 text-white ring-2 ring-amber-300'
-                      : isShot
-                        ? 'bg-sky-500 text-white ring-2 ring-sky-300'
-                        : 'bg-gray-700 text-amber-300 ring-2 ring-gray-400'
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shadow-md transition-transform group-hover:scale-125 ${
+                    isPenaltyScored
+                      ? 'bg-emerald-600 text-white ring-2 ring-emerald-300'
+                      : isPenaltyMissed
+                        ? 'bg-rose-600 text-white ring-2 ring-rose-300'
+                        : isGoal
+                          ? isHome
+                            ? 'bg-blue-600 text-white ring-2 ring-blue-300'
+                            : 'bg-amber-500 text-white ring-2 ring-amber-300'
+                          : isShot
+                            ? 'bg-sky-500 text-white ring-2 ring-sky-300'
+                            : 'bg-gray-700 text-amber-300 ring-2 ring-gray-400'
                   }`}
                 >
-                  {isGoal ? (isHome ? 'H' : 'A') : isShot ? 'S' : 'P'}
+                  {isPenaltyScored ? 'P✓' : isPenaltyMissed ? 'P✗' : isGoal ? (isHome ? 'H' : 'A') : isShot ? 'S' : 'P'}
                 </div>
 
                 {/* Tooltip on Hover */}
                 {isHovered && (
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-900 text-white text-[11px] p-2.5 rounded-xl shadow-xl z-30 pointer-events-none animate-in fade-in zoom-in-95">
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-gray-900 text-white text-[11px] p-2.5 rounded-xl shadow-xl z-30 pointer-events-none animate-in fade-in zoom-in-95">
                     <div className="font-bold text-gray-300 flex justify-between">
                       <span>{evt.period} • {evt.time}</span>
-                      <span>{evt.score || ''}</span>
+                      <span>{evt.score || (isPenaltyMissed ? 'Missed' : '')}</span>
                     </div>
                     <div className="font-bold text-white mt-1">
-                      {isGoal ? `Goal: ${evt.scorer}` : isShot ? `Shot: ${evt.shotPlayer || evt.player}` : `${evt.penaltyReason || 'Penalty'}`}
+                      {isPenaltyScored
+                        ? `Penalty Shot Goal! ${evt.scorer || evt.player}`
+                        : isPenaltyMissed
+                          ? `Penalty Shot Missed (${evt.missReason || 'Saved'}) - ${evt.player || evt.shotPlayer}`
+                          : isGoal
+                            ? `Goal: ${evt.scorer}`
+                            : isShot
+                              ? `Shot: ${evt.shotPlayer || evt.player}`
+                              : `${evt.penaltyReason || 'Penalty'}`}
                     </div>
                     {evt.assist && (
                       <div className="text-[10px] text-gray-400 truncate">Assist: {evt.assist}</div>
+                    )}
+                    {evt.goalie && (
+                      <div className="text-[10px] text-gray-400 truncate">Goalie: {evt.goalie}</div>
                     )}
                     <div className="text-[10px] text-blue-400 font-semibold mt-0.5">
                       {isHome ? homeName : awayName}
@@ -342,6 +360,12 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-amber-600 font-extrabold">{awayName} Goal</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-emerald-600 font-extrabold">Penalty Scored (P✓)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-rose-600 font-extrabold">Penalty Missed (P✗)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-sky-600 font-extrabold">Shot on Goal</span>
@@ -415,6 +439,9 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                       const isGoal = type === 'goal';
                       const isShot = type === 'shot';
                       const isPenalty = type === 'penalty';
+                      const isPenaltyShot = type === 'penalty_shot';
+                      const isPenaltyScored = isPenaltyShot && evt.penaltyShotResult === 'scored';
+                      const isPenaltyMissed = isPenaltyShot && evt.penaltyShotResult !== 'scored';
                       const isHome = evt.team === 'home';
 
                       return (
@@ -425,11 +452,15 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                           {/* Timeline node dot */}
                           <div
                             className={`absolute -left-6 sm:-left-8 top-4 sm:top-1/2 -translate-y-1/2 w-2 h-2 ${
-                              isGoal
-                                ? isHome ? 'bg-blue-600' : 'bg-amber-500'
-                                : isShot
-                                  ? 'bg-sky-500'
-                                  : 'bg-gray-700'
+                              isPenaltyScored
+                                ? 'bg-emerald-600'
+                                : isPenaltyMissed
+                                  ? 'bg-rose-500'
+                                  : isGoal
+                                    ? isHome ? 'bg-blue-600' : 'bg-amber-500'
+                                    : isShot
+                                      ? 'bg-sky-500'
+                                      : 'bg-gray-700'
                             }`}
                           ></div>
 
@@ -443,25 +474,53 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
                               <div className="flex items-center gap-2">
                                 <span
                                   className={`text-xs font-black uppercase tracking-wider ${
-                                    isGoal
-                                      ? isHome
-                                        ? 'text-blue-600'
-                                        : 'text-amber-600'
-                                      : isShot
-                                        ? 'text-sky-600'
-                                        : 'text-gray-700'
+                                    isPenaltyScored
+                                      ? 'text-emerald-600'
+                                      : isPenaltyMissed
+                                        ? 'text-rose-600'
+                                        : isGoal
+                                          ? isHome
+                                            ? 'text-blue-600'
+                                            : 'text-amber-600'
+                                          : isShot
+                                            ? 'text-sky-600'
+                                            : 'text-gray-700'
                                   }`}
                                 >
-                                  {isGoal ? 'Goal' : isShot ? 'Shot on Goal' : isPenalty ? `${evt.penaltyMin || 2} Min Penalty` : 'Timeout'}
+                                  {isPenaltyScored
+                                    ? 'Penalty Shot Goal'
+                                    : isPenaltyMissed
+                                      ? 'Penalty Shot Missed'
+                                      : isGoal
+                                        ? 'Goal'
+                                        : isShot
+                                          ? 'Shot on Goal'
+                                          : isPenalty
+                                            ? `${evt.penaltyMin || 2} Min Penalty`
+                                            : 'Timeout'}
                                 </span>
 
                                 <span className="font-bold text-gray-900 text-sm truncate">
-                                  {isGoal ? (evt.scorer || 'Goal Scored') : isShot ? (evt.shotPlayer || evt.player || 'Shot') : (evt.penaltyPlayer || evt.player || 'Player')}
+                                  {isPenaltyShot
+                                    ? (evt.player || evt.scorer || evt.shotPlayer || 'Shooter')
+                                    : isGoal
+                                      ? (evt.scorer || 'Goal Scored')
+                                      : isShot
+                                        ? (evt.shotPlayer || evt.player || 'Shot')
+                                        : (evt.penaltyPlayer || evt.player || 'Player')}
                                 </span>
                               </div>
 
                               <div className="text-xs text-gray-500 mt-0.5 truncate">
-                                {isGoal ? (
+                                {isPenaltyScored ? (
+                                  <span>
+                                    Penalty Shot Scored {evt.goalie ? <>against <strong className="text-gray-700">{evt.goalie}</strong></> : ''}
+                                  </span>
+                                ) : isPenaltyMissed ? (
+                                  <span>
+                                    <strong className="text-rose-700">{evt.missReason || 'Saved by Goalie'}</strong> {evt.goalie ? <>(Goalie: {evt.goalie})</> : ''} • No Goal
+                                  </span>
+                                ) : isGoal ? (
                                   evt.assist ? (
                                     <span>Assists: <strong className="text-gray-700">{evt.assist}</strong></span>
                                   ) : (
@@ -480,11 +539,19 @@ export function MatchTimeline({ matchState, homeName, awayName, isRunning, forma
 
                           {/* Right: Team & Score Change */}
                           <div className="text-right shrink-0">
-                            {isGoal && evt.score && (
+                            {isPenaltyScored && evt.score ? (
+                              <div className="font-mono font-black text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                                {evt.score}
+                              </div>
+                            ) : isPenaltyMissed ? (
+                              <div className="font-mono font-bold text-xs text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg">
+                                No Goal
+                              </div>
+                            ) : isGoal && evt.score ? (
                               <div className="font-mono font-black text-sm text-gray-900 bg-gray-100 px-2.5 py-1 rounded-lg">
                                 {evt.score}
                               </div>
-                            )}
+                            ) : null}
                             <div className="text-[11px] font-semibold text-gray-400 mt-0.5">
                               {isHome ? homeName : awayName}
                             </div>
