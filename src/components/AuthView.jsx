@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Mail, Lock, ArrowLeft, AlertCircle, CheckCircle, UserPlus, LogIn } from 'lucide-react';
+import { User, Mail, Lock, AlertCircle, CheckCircle, UserPlus, LogIn } from 'lucide-react';
 import { loginUser, registerUser } from '../services/authService';
 
 export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' }) {
@@ -122,7 +122,7 @@ export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' 
                   type="text"
                   value={loginIdentifier}
                   onChange={(e) => setLoginIdentifier(e.target.value)}
-                  placeholder="e.g. user or operator@nhl.com"
+                  placeholder="Username or email"
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-hidden transition-all"
                   required
                   autoFocus
@@ -140,7 +140,7 @@ export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' 
                   type="password"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Password"
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-hidden transition-all"
                   required
                 />
@@ -168,7 +168,7 @@ export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' 
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="John Doe"
+                  placeholder="Full name"
                   className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-hidden transition-all"
                   required
                 />
@@ -184,7 +184,7 @@ export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' 
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="johndoe"
+                  placeholder="Username"
                   className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-hidden transition-all"
                   required
                 />
@@ -201,7 +201,7 @@ export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' 
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="john@example.com"
+                  placeholder="Email address"
                   className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-hidden transition-all"
                   required
                 />
@@ -218,7 +218,7 @@ export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' 
                     type="password"
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Password"
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-hidden transition-all"
                     required
                   />
@@ -234,7 +234,7 @@ export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' 
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Confirm password"
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-hidden transition-all"
                     required
                   />
@@ -283,21 +283,6 @@ export function AuthView({ onAuthSuccess, onBackToPublic, initialMode = 'login' 
               </button>
             </p>
           )}
-        </div>
-
-        {/* Test Login Helper Note */}
-        {mode === 'login' && (
-          <div className="mt-4 p-3 rounded-2xl bg-gray-50 border border-gray-100 text-xs text-gray-500 text-center">
-            <span className="font-semibold text-gray-700">Quick Demo Account:</span>{' '}
-            <code className="bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-800">user</code> /{' '}
-            <code className="bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-800">password</code>
-          </div>
-        )}
-
-        {/* Security Info Badge */}
-        <div className="mt-4 py-2 px-3 bg-blue-50/50 border border-blue-100 rounded-xl text-[11px] text-blue-700 flex items-center justify-center gap-2 text-center">
-          <Lock className="w-3.5 h-3.5 shrink-0 text-blue-600" />
-          <span>PHP Laravel Auth: Bcrypt password hashing, session cookies & rate limiting active</span>
         </div>
 
         {/* Back to Public View Link */}
