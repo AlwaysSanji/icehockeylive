@@ -5,7 +5,6 @@ import { useGameClock } from '../hooks/useGameClock';
 import { UnifiedNavbar } from './UnifiedNavbar';
 import { LeagueManager } from './LeagueManager';
 import { BoxScoreTable } from './BoxScoreTable';
-import { PenaltyTracker } from './PenaltyTracker';
 
 export function ScoreboardList({ 
   liveMatchState, 
@@ -89,14 +88,6 @@ export function ScoreboardList({
         />
       ) : (
         <div className="space-y-6">
-          {/* Active Live Penalty Tracker (If Live Tab) */}
-          {activeNavTab === 'live' && primaryActiveMatch && (
-            <PenaltyTracker 
-              matchState={primaryActiveMatch} 
-              isOperator={false} 
-            />
-          )}
-
           {/* Matches List Container */}
           {displayedMatches.length > 0 ? (
             <div className="space-y-4">

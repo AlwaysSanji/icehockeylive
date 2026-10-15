@@ -12,7 +12,6 @@ import { useGameClock } from '../hooks/useGameClock';
 import { formatPeriodName } from '../utils/timeFormatter';
 import { MatchTimeline } from './MatchTimeline';
 import { BoxScoreTable } from './BoxScoreTable';
-import { PenaltyTracker } from './PenaltyTracker';
 
 export function MatchDetailView({ 
   matchState, 
@@ -311,9 +310,6 @@ export function MatchDetailView({
             {/* 1. OVERVIEW TAB */}
             {activeTab === 'Overview' && (
               <div className="space-y-6">
-                {/* Live Penalty Status */}
-                <PenaltyTracker matchState={matchState} />
-
                 {/* Period Scoring Breakdown Box Score */}
                 <BoxScoreTable matchState={matchState} />
 

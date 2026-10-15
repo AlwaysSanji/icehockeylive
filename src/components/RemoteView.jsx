@@ -24,7 +24,6 @@ import { AdminPanel } from './AdminPanel';
 import { LeagueManager } from './LeagueManager';
 import { UnifiedNavbar } from './UnifiedNavbar';
 import { BoxScoreTable } from './BoxScoreTable';
-import { PenaltyTracker } from './PenaltyTracker';
 
 export function RemoteView({ 
   matchState, 
@@ -2184,14 +2183,7 @@ export function RemoteView({
                 {/* 1. Precision Game Clock Controls */}
                 {renderClockControls()}
 
-                {/* 2. Live Penalty Tracker & Power Plays */}
-                <PenaltyTracker 
-                  matchState={matchState} 
-                  isOperator={true} 
-                  onCancelPenalty={() => scoreboard.setPowerPlay && scoreboard.setPowerPlay(null)} 
-                />
-
-                {/* 3. Period-by-Period Box Score Table */}
+                {/* 2. Period-by-Period Box Score Table */}
                 <BoxScoreTable matchState={matchState} />
 
                 {/* 4. Dual Team Stations: Goals & Shots */}
